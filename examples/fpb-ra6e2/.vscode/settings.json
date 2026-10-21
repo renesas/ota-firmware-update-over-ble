@@ -1,0 +1,35 @@
+{
+  // cmake.additionalKits and cmake.environment are deliberately NOT set: the
+  // Renesas Platform extension registers its kits (e.g. "Renesas Platform: Arm
+  // LLVM Toolchain") through the user-level cmake.additionalKits, and passes the
+  // active Smart Configurator (RASC_EXE_PATH) through the user-level
+  // cmake.environment; project values would replace (hide) both.
+  // Show the kit / build variant / build / debug entries in the status bar.
+  "cmake.options.statusBarVisibility": "visible",
+  "cmake.configureOnOpen": true,
+  "cmake.configureOnEdit": true,
+  "cmake.useCMakePresets": "never",
+  "cmake.sourceDirectory": "${workspaceFolder}",
+  "cmake.buildDirectory": "${workspaceFolder}/build/${buildType}",
+  "cmake.generator": "Ninja",
+  "cmake.debugConfig": {
+    "name": "Renesas GDB Debugging",
+    "type": "renesas-hardware",
+    "request": "launch",
+    "target": {
+      "device": "R7FA6E2BB",
+      "deviceFamily": "RA",
+      "debuggerType": "SEGGERJLINKARM"
+    },
+    "cwd": "${command:renesas.debug.supportFolder}"
+  },
+  // --enable-config=false: ignore the e2studio .clangd (it points clangd at the
+  // e2studio Debug/ folder) and use the CMake compile database below instead.
+  "clangd.arguments": [
+    "--query-driver=${env:ARM_TOOLCHAIN_PATH}/*,${env:ARM_GCC_TOOLCHAIN_PATH}/*",
+    "--compile-commands-dir=${workspaceFolder}/build/Debug",
+    "--enable-config=false",
+    "--background-index"
+  ],
+  "clangd.path": "${config:renesas-platform.crossProbeClangdPath}"
+}

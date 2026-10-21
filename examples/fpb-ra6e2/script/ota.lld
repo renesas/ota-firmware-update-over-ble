@@ -1,0 +1,87 @@
+/*
+                  Linker File for Renesas FSP - OTA swap-bootloader build
+                  (ra6e2_da14531ebz_v2, FPB-RA6E2)  --  LLVM / ld.lld variant
+
+    LLVM PORT NOTE
+    --------------
+    This is the ld.lld counterpart of script/ota.ld. It is identical in intent and
+    layout; the only difference is that it INCLUDEs the LLVM-form generated scripts
+    (memory_regions.lld / fsp_gen.lld) that "Generate Project Content" emits when the
+    toolchain is set to LLVM (clang_arm), instead of the GCC-form .ld files.
+
+    Select it in Properties -> C/C++ Build -> Settings -> Linker -> Linker script,
+    for the LLVM (Debug) configuration. See script/ota.ld for the full rationale.
+
+    WHY THIS FILE EXISTS
+    --------------------
+    "Generate Project Content" rewrites BOTH generated linker inputs:
+        <config>/memory_regions.lld  - whole-device flash and RAM
+        script/fsp.lld               - the stock two-line include
+    so an override placed in either of them is silently reverted the next time the
+    configurator runs. RASC has no template for THIS file, so it is left alone.
+
+    WHAT IT CHANGES
+    ---------------
+    1. Link address. This application runs from the bootloader's PRIMARY slot, not
+       from address 0 (where the bootloader itself lives).
+
+           FLASH_START  = 0x00010000   (BOOT_PRIMARY_BASE)
+           FLASH_LENGTH = 0x00018000   (BOOT_PRIMARY_SIZE, 96 KB)
+
+    2. Mailbox reservation. The top 32 bytes of SRAM carry the request/result
+       handshake with the bootloader across a reset.
+
+    Flash map (master copy: ota_fw_bootloader/src/boot_layout.h):
+
+        0x00000000  16 KB   bootloader      <- embedded in this image, see (3)
+        0x00004000  16 KB   spare
+        0x00008000  32 KB   scratch
+        0x00010000  96 KB   primary slot    <- this image is linked here
+        0x00028000  96 KB   secondary slot  <- SUOTA staging window
+        0x08000000  128 B   boot record + swap log (data flash, VEE starts above)
+*/
+
+INCLUDE memory_regions.lld
+
+/* Run from the primary slot instead of the start of flash. Assigned AFTER the
+ * generated file is included and BEFORE fsp_gen.lld, which is where the MEMORY
+ * block reads these symbols. */
+FLASH_START  = 0x00010000;
+FLASH_LENGTH = 0x00018000;
+
+/* Reserve the top of SRAM for the boot mailbox. Must match RSBOOT_MAILBOX_RESERVE
+ * in src/rs_ota_fw_update_over_ble/src/hal/rs_ota_fw_update_over_ble_boot_rsboot.c
+ * and the identical line in the bootloader's linker script. */
+RAM_LENGTH = RAM_LENGTH - 0x20;
+
+INCLUDE fsp_gen.lld
+
+/*  3. Embedded bootloader.
+
+    The pre-built bootloader image is linked into THIS image at its real address
+    (0x00000000), so a single download of the .elf / .srec programs both. The bytes
+    come from src/rs_ota_fw_update_over_ble/bootloader.bin via the .incbin at the top
+    of src/hal/rs_ota_fw_update_over_ble_boot_rsboot.c. Nothing in the application
+    references them, so KEEP() is required or --gc-sections drops the section.
+
+    makefile.targets strips this section from the _ota artifacts - an OTA payload
+    must contain the application only. */
+SECTIONS
+{
+    .bootloader 0x00000000 :
+    {
+        KEEP(*(.bootloader))
+    }
+}
+
+/* 0x4000 = BOOT_BOOTLOADER_SIZE in ota_fw_bootloader/src/boot_layout.h. Overflowing
+ * it would silently corrupt the spare region that follows. */
+ASSERT(SIZEOF(.bootloader) <= 0x4000,
+       "Embedded bootloader exceeds BOOT_BOOTLOADER_SIZE (16 KB) - it would overrun the spare region at 0x00004000")
+
+/* A wrong link address still links cleanly and only fails once it is on the
+ * board, so fail here instead. */
+ASSERT(FLASH_START == 0x00010000,
+       "Application must be linked at BOOT_PRIMARY_BASE (0x00010000) - is script/ota.lld selected as the linker script?")
+ASSERT(FLASH_LENGTH == 0x00018000,
+       "Application must be limited to BOOT_PRIMARY_SIZE (96 KB) - a larger image would overrun the secondary slot")

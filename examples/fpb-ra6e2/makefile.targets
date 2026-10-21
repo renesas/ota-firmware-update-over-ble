@@ -1,0 +1,113 @@
+################################################################################
+# User build rules for the BLE OTA application (ra6e2_da14531ebz_v2).
+#
+# Pulled in by the generated <config>/makefile via "-include ../makefile.targets".
+# That include line is emitted from the e2 studio / RASC makefile TEMPLATE, so it
+# survives every "Generate Project Content" - this file keeps working after a regen.
+#
+# WHY THIS FILE EXISTS:
+# The generated makefile only produces an .elf, an .srec and a size print. None of
+# those can be handed to a SUOTA client. The application is linked once, at
+# 0x00010000 (see script/ota.lld [LLVM] or script/ota.ld [GCC] and the bootloader's
+# src/boot_layout.h), and a new
+# image is staged into the secondary slot and moved into place by the bootloader.
+# What the user needs to download is therefore a RAW, HEADERLESS copy of exactly
+# that primary-slot image - which is what <name>_ota.bin below is.
+#
+# NO SUOTA HEADER ON PURPOSE:
+# The bootloader reads the vector table (initial SP / reset vector) from offset 0
+# of the slot. Prepending a 64-byte SUOTA header would shift those words and the
+# swap would be rejected, so the payload is deliberately a flat binary.
+################################################################################
+
+# LLVM (ATfE) binutils. These ship with the clang_arm toolchain and are placed on
+# PATH by the "LLVM for Renesas" builder. llvm-objcopy/llvm-size accept the same
+# -O binary / --gap-fill / -R / -w / --format flags used below and operate on the
+# ELF regardless of which compiler produced it (so the GCC Release fallback works too,
+# as long as the ATfE bin is on PATH).
+#
+# NOTE: do NOT call these OBJCOPY/SIZE. The LLVM-generated <config>/makefile already
+# defines OBJCOPY as its list of objcopy OUTPUT files (e.g. ra6e2_da14531ebz_v2.srec)
+# and uses it in "secondary-outputs: $(OBJCOPY) ...". Reusing that name makes $(OBJCOPY)
+# below expand to the .srec filename, which the shell then tries to execute (Error 127).
+# Use project-private names instead. Override on the command line if needed, e.g.
+#   make OTA_OBJCOPY=arm-none-eabi-objcopy OTA_SIZE=arm-none-eabi-size
+OTA_OBJCOPY ?= llvm-objcopy
+OTA_SIZE    ?= llvm-size
+
+PROJ_ELF       := ra6e2_da14531ebz_v2.elf
+PROJ_MAP       := ra6e2_da14531ebz_v2.map
+OTA_IMAGE_NAME := ra6e2_da14531ebz_v2_ota
+
+# Maximum image size: the flat primary-slot window.
+# Must match BOOT_PRIMARY_SIZE in the bootloader's src/boot_layout.h and
+# FLASH_LENGTH in script/ota.lld (LLVM) / script/ota.ld (GCC).
+OTA_SLOT_SIZE := 0x18000
+
+# Option settings (0x0100Axxx) and data flash / VEE (0x08000000) are not part of the
+# application slot - they belong to the bootloader and the boot record. They must be
+# stripped, or objcopy pads the gap from 0x28000 up to those addresses and the binary
+# balloons to gigabytes.
+#
+# .bootloader (0x00000000) is the bootloader image embedded into the MAIN build by the
+# .incbin block at the top of src/rs_ota_fw_update_over_ble/src/hal/rs_ota_fw_update_over_ble_boot_rsboot.c,
+# so that one download programs both.
+# It must never appear in an OTA payload: the image is staged into the secondary slot
+# by the bootloader that is already running, and leaving it in would both bloat the
+# payload and drag the binary's start address down to 0.
+OTA_BIN_EXCLUDE := -R .bootloader -R .option_setting* -R __option_setting* -R *data_flash*
+
+# "secondary-outputs" is a recipe-less target in the generated makefile, so extra
+# prerequisites can safely be appended to it here.
+secondary-outputs: $(OTA_IMAGE_NAME).bin $(OTA_IMAGE_NAME).map
+
+# The OTA deliverables are the .bin and its .map - deliberately NO second .elf.
+# An extra <name>_ota.elf next to the real one confuses other IDEs / debuggers (they
+# pick it up as a second program image). The .map is the linker map of this exact
+# build: every symbol and address of the payload, for post-mortem work on an image
+# that was installed over the air. The main .elf remains the debug image.
+#
+# The map is written by the link step together with $(PROJ_ELF), hence the
+# dependency on the ELF. Copied with PowerShell because the recipe already relies on
+# it below; the stale _ota.elf of older builds is removed on the way.
+$(OTA_IMAGE_NAME).map: $(PROJ_ELF)
+	@echo Creating $(OTA_IMAGE_NAME).map && powershell -NoProfile -Command "Copy-Item -Force '$(PROJ_MAP)' '$(OTA_IMAGE_NAME).map'"
+	-@$(RM) $(OTA_IMAGE_NAME).elf
+
+# THE FILE TO DOWNLOAD INTO THE SECONDARY SLOT.
+# --gap-fill 0xFF matches the erased state of the flash, so a padded image and an
+# erased slot compare equal.
+#
+# The size guard is not cosmetic: it also catches a script/ota.lld (or script/ota.ld)
+# that lost its FLASH_START / FLASH_LENGTH override (which "Generate Project Content"
+# removes), in which case the application silently relinks at 0x00000000 over the bootloader
+# and the binary is far too large for the slot. Written without PowerShell
+# variables on purpose - "$" is make's escape character and mangles them.
+$(OTA_IMAGE_NAME).bin: $(PROJ_ELF)
+	@echo Creating $(OTA_IMAGE_NAME).bin && $(OTA_OBJCOPY) -O binary -w --gap-fill 0xFF $(OTA_BIN_EXCLUDE) $(PROJ_ELF) $(OTA_IMAGE_NAME).bin
+	@powershell -NoProfile -ExecutionPolicy Bypass -Command "if ((Get-Item '$(OTA_IMAGE_NAME).bin').Length -gt $(OTA_SLOT_SIZE)) { Write-Host ('ERROR: $(OTA_IMAGE_NAME).bin is {0} bytes and does not fit its {1} byte slot. Check the FLASH_LENGTH override in script/ota.ld.' -f (Get-Item '$(OTA_IMAGE_NAME).bin').Length, $(OTA_SLOT_SIZE)); exit 1 } else { Write-Host ('$(OTA_IMAGE_NAME): {0} of {1} bytes used ({2:N1} percent)' -f (Get-Item '$(OTA_IMAGE_NAME).bin').Length, $(OTA_SLOT_SIZE), (100.0 * (Get-Item '$(OTA_IMAGE_NAME).bin').Length / $(OTA_SLOT_SIZE))) }"
+
+.PHONY: ota-size
+ota-size: $(PROJ_ELF)
+	@$(OTA_SIZE) --format=berkeley $(PROJ_ELF)
+
+# .incbin leaves NO dependency information behind - the assembler records the file it
+# pulled in nowhere, so replacing bootloader.bin would not rebuild anything and the
+# stale bootloader would keep being linked in. State the dependency explicitly against
+# the translation unit that carries the .incbin.
+#
+# Replacing the bin also means updating its version label (RSBOOT_BL_BLOB_* in
+# rs_ota_fw_update_over_ble_boot_rsboot.c): set the size first, flash once, and the
+# boot banner reports "bootloader UNKNOWN (crc 0x........)" - that CRC is the value.
+BL_BLOB := ../src/rs_ota_fw_update_over_ble/bootloader.bin
+
+./src/rs_ota_fw_update_over_ble/src/hal/rs_ota_fw_update_over_ble_boot_rsboot.o: $(BL_BLOB)
+
+# The generated "clean" already owns a recipe and knows nothing about the two _ota
+# artifacts. Make forbids a second recipe for the same target, so the hook is added
+# as a PREREQUISITE instead.
+clean: clean-ota
+
+.PHONY: clean-ota
+clean-ota:
+	-$(RM) $(OTA_IMAGE_NAME).bin $(OTA_IMAGE_NAME).map $(OTA_IMAGE_NAME).elf

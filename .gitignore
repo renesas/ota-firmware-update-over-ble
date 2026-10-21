@@ -1,0 +1,34 @@
+# Build output
+Debug/
+Release/
+*_Debug/
+*_Release/
+
+# VS Code / CMake build output and clangd index
+build/
+.cache/
+
+# FSP generated code
+ra/
+ra_gen/
+ra_cfg/
+.api_xml
+.secure_azone
+.secure_rzone
+# LLVM linker scripts generated at the project root by standalone RASC (CMake build)
+/memory_regions.lld
+/fsp_gen.lld
+
+# QE-for-BLE regeneration backups
+trash/
+
+# JLink logs
+*.log
+*.jlink
+
+# Eclipse workspace metadata
+.metadata/
+
+# OS files
+.DS_Store
+Thumbs.db

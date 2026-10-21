@@ -1,0 +1,97 @@
+{
+  "cpuType": "cortex-m33",
+  "deviceName": "R7FA6E2BB3CFM",
+  "coreName": "CM33",
+  "compilerType": "LLVMARM",
+  "deviceCommand": "R7FA6E2BB",
+  "buildArtifactType": "EXECUTABLE",
+  "isCpp": false,
+  "activeBuildConfiguration": "Release",
+  "buildConfigurations": {
+    "Debug": {
+      "definedMacros": [
+        "_RENESAS_RA_",
+        "_RA_CORE=CM33",
+        "_RA_ORDINAL=1"
+      ],
+      "sourcePaths": [
+        "ra_gen",
+        "src",
+        "ra"
+      ],
+      "companionSourcePaths": [
+        "ra/aws",
+        "ra/arm"
+      ],
+      "excludedFilePaths": [],
+      "includePaths": [
+        "ra_cfg/fsp_cfg/bsp",
+        "ra_gen",
+        "ra_cfg/fsp_cfg",
+        "ra_cfg/aws",
+        "src",
+        "ra/fsp/inc",
+        "ra/fsp/inc/api",
+        "ra/fsp/inc/instances",
+        "ra/fsp/src/rm_freertos_port",
+        "ra/aws/FreeRTOS/FreeRTOS/Source/include",
+        "ra/arm/CMSIS_6/CMSIS/Core/Include",
+        "ra/renesas/wireless/da14xxx/r_ble_gtl",
+        "ra/intel/tinycrypt/lib/include"
+      ],
+      "libraryPaths": [],
+      "libraryNames": [],
+      "objectFiles": [],
+      "targetDeviceName": "R7FA6E2BB3CFM",
+      "entrySymbol": "Reset_Handler",
+      "buildConfigurationName": "Release",
+      "isPreBuildContentGenEnabled": false,
+      "isPostBuildContentGenEnabled": false,
+      "isTargetDeviceSupportsTrustZone": true,
+      "buildOptionsMap": {}
+    },
+    "Release": {
+      "definedMacros": [
+        "_RENESAS_RA_",
+        "_RA_CORE=CM33",
+        "_RA_ORDINAL=1"
+      ],
+      "sourcePaths": [
+        "ra_gen",
+        "src",
+        "ra"
+      ],
+      "companionSourcePaths": [
+        "ra/aws",
+        "ra/arm"
+      ],
+      "excludedFilePaths": [],
+      "includePaths": [
+        "ra_cfg/fsp_cfg/bsp",
+        "ra_gen",
+        "ra_cfg/fsp_cfg",
+        "ra_cfg/aws",
+        "src",
+        "ra/fsp/inc",
+        "ra/fsp/inc/api",
+        "ra/fsp/inc/instances",
+        "ra/fsp/src/rm_freertos_port",
+        "ra/aws/FreeRTOS/FreeRTOS/Source/include",
+        "ra/arm/CMSIS_6/CMSIS/Core/Include",
+        "ra/renesas/wireless/da14xxx/r_ble_gtl",
+        "ra/intel/tinycrypt/lib/include"
+      ],
+      "libraryPaths": [],
+      "libraryNames": [],
+      "objectFiles": [],
+      "linkerScript": "script/fsp.lld",
+      "targetDeviceName": "R7FA6E2BB3CFM",
+      "entrySymbol": "Reset_Handler",
+      "buildConfigurationName": "Release",
+      "isPreBuildContentGenEnabled": false,
+      "isPostBuildContentGenEnabled": false,
+      "isTargetDeviceSupportsTrustZone": true,
+      "buildOptionsMap": {}
+    }
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "configurations": [
+    {
+      "name": "Renesas GDB Debugging Default",
+      "type": "renesas-hardware",
+      "request": "launch",
+      "program": "${command:cmake.launchTargetPath}",
+      // No "pythonHome" here (as in the reference projects): the Renesas debug
+      // extension uses the Python 3.10 installed by the Renesas Platform Manager.
+      // Forcing it to ${env:RENESAS_GDB_PYTHONHOME} made gdb fail to start on PCs
+      // where that variable is not set. Set "pythonHome" in your user settings
+      // only if gdb picks an incompatible Python from PATH (e.g. msys64).
+      "target": {
+        "device": "R7FA6E2BB",
+        "deviceFamily": "RA",
+        "debuggerType": "SEGGERJLINKARM",
+        "supportFolder": "${command:renesas.debug.supportFolder}"
+      }
+    },
+    {
+      "name": "Renesas GDB Debugging Server",
+      "type": "cortex-debug",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "executable": "${command:cmake.launchTargetPath}",
+      "servertype": "external",
+      "gdbTarget": "localhost:2331",
+      "gdbPath": "${env:ARM_GDB_PATH}",
+      "device": "R7FA6E2BB",
+      "interface": "swd",
+      "runToEntryPoint": "main",
+      "overrideLaunchCommands": [
+        "set remotetimeout 60",
+        "set tcp connect-timeout 60",
+        "-target-select extended-remote localhost:2331",
+        "monitor halt",
+        "monitor reset 0",
+        "-target-download",
+        "monitor reset 0"
+      ],
+      "overrideRestartCommands": [
+        "monitor reset 0"
+      ]
+    }
+  ],
+  "version": "0.2.0"
+}

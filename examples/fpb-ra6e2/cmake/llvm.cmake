@@ -7,17 +7,48 @@
 # toolchain is auto-detected (Renesas Platform Manager / e2 studio installs).
 # The compile/link/define flags come from cmake/GeneratedCfg.cmake.
 
-# Toolchain binary directory.
-# (Should avoid spaces in the path or have to escape them)
+# Toolchain binary directory (the ATfE "bin" folder that contains clang).
+# Resolution order - the first candidate that really exists is used:
+#   1. -DARM_TOOLCHAIN_PATH=... (CMake setting / project kit)
+#   2. the compiler chosen by the VS Code kit (CMAKE_C_COMPILER), e.g. the
+#      "Renesas Platform: Arm LLVM Toolchain" kit
+#   3. the ARM_TOOLCHAIN_PATH / ARM_LLVM_TOOLCHAIN_PATH environment variables
+#   4. auto-detection (Renesas Platform Manager state.json, e2 studio installs)
+# A candidate that points to a folder that no longer exists (e.g. an old
+# environment variable left from an uninstalled e2 studio) is skipped with a
+# warning instead of stopping the configure.
+set(_tc_candidates "")
 if(DEFINED ARM_TOOLCHAIN_PATH AND NOT ARM_TOOLCHAIN_PATH STREQUAL "")
-  set(CMAKE_FIND_ROOT_PATH "${ARM_TOOLCHAIN_PATH}")
-  message("Using ARM_TOOLCHAIN_PATH given with cmake settings -DARM_TOOLCHAIN_PATH=${ARM_TOOLCHAIN_PATH}")
-elseif(DEFINED ENV{ARM_TOOLCHAIN_PATH} AND NOT ENV{ARM_TOOLCHAIN_PATH} STREQUAL "")
-  message("Using ARM_TOOLCHAIN_PATH defined in environment: $ENV{ARM_TOOLCHAIN_PATH}")
-  set(CMAKE_FIND_ROOT_PATH $ENV{ARM_TOOLCHAIN_PATH})
-elseif(DEFINED ENV{ARM_LLVM_TOOLCHAIN_PATH} AND NOT ENV{ARM_LLVM_TOOLCHAIN_PATH} STREQUAL "")
-  message("Using ARM_LLVM_TOOLCHAIN_PATH defined in environment: $ENV{ARM_LLVM_TOOLCHAIN_PATH}")
-  set(CMAKE_FIND_ROOT_PATH $ENV{ARM_LLVM_TOOLCHAIN_PATH})
+  list(APPEND _tc_candidates "-DARM_TOOLCHAIN_PATH|${ARM_TOOLCHAIN_PATH}")
+endif()
+if(CMAKE_C_COMPILER)
+  get_filename_component(_cc_dir "${CMAKE_C_COMPILER}" DIRECTORY)
+  list(APPEND _tc_candidates "the compiler of the selected kit|${_cc_dir}")
+endif()
+foreach(_env ARM_TOOLCHAIN_PATH ARM_LLVM_TOOLCHAIN_PATH)
+  if(DEFINED ENV{${_env}} AND NOT "$ENV{${_env}}" STREQUAL "")
+    list(APPEND _tc_candidates "environment variable ${_env}|$ENV{${_env}}")
+  endif()
+endforeach()
+
+set(_tc_found "")
+foreach(_cand IN LISTS _tc_candidates)
+  string(REPLACE "|" ";" _cand "${_cand}")
+  list(GET _cand 0 _src)
+  list(GET _cand 1 _dir)
+  file(TO_CMAKE_PATH "${_dir}" _dir)
+  if(EXISTS "${_dir}/clang.exe" OR EXISTS "${_dir}/clang")
+    set(_tc_found "${_dir}")
+    message("Using LLVM (ATfE) toolchain from ${_src}: ${_dir}")
+    break()
+  else()
+    message(WARNING "Ignoring ${_src}: no clang found in '${_dir}'")
+  endif()
+endforeach()
+
+if(_tc_found)
+  set(ARM_TOOLCHAIN_PATH "${_tc_found}")
+  set(CMAKE_FIND_ROOT_PATH "${_tc_found}")
 else ()
   # No path given: find the LLVM (ATfE) toolchain automatically.
   # 1. Tools registered by the Renesas Platform Manager (VS Code), read from

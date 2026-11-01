@@ -158,7 +158,7 @@ button S1), runs the trial health gate and writes diagnostics to SEGGER RTT.
 | e² studio | Primary IDE; opens the project via the committed `.cproject` / `configuration.xml` |
 | RA Smart Configurator (RASC) | Regenerates `ra/`, `ra_gen/`, `ra_cfg/` from `configuration.xml` |
 | QE for BLE | Edits the SUOTA GATT profile; output merged via `scripts/qe_ble.bat` |
-| LLVM for Arm (ATfE) 21.1.1 | `clang` / `ld.lld` — e² studio Debug configuration and the VS Code ARM LLVM (ATfE) - Ninja kit (default) |
+| LLVM for Arm (ATfE) 21.1.1 | `clang` / `ld.lld` — e² studio Debug configuration and the VS Code `Renesas Platform: Arm LLVM Toolchain - 21.1.1` kit (default) |
 | Arm GNU Embedded toolchain 13.3 | `arm-none-eabi-gcc` (newlib) — e² studio Release configuration and the VS Code ARM GCC - Ninja kit (fallback) |
 | VS Code *(optional)* | Second IDE, built with CMake (`CMakeLists.txt`) — independent of the e² studio build; needs the CMake Tools and Renesas debug extensions |
 | CMake ≥ 3.20 + Ninja | VS Code build only |
@@ -211,8 +211,8 @@ generated FSP content (`ra/`, `ra_gen/`, `ra_cfg/`) is produced by RASC as part 
 
 1. Run `setup-env.cmd` once (see [§3.2](#32-software-requirements)) and restart VS Code.
 2. File → Open Folder and select the `ra6e2_da14531ebz_v2` folder.
-3. When prompted for a kit, select ARM LLVM (ATfE) - Ninja (the same toolchain as the e² studio Debug
-   build). ARM GCC - Ninja is the fallback.
+3. When prompted for a kit, select `Renesas Platform: Arm LLVM Toolchain - 21.1.1` (the same toolchain as
+   the e² studio Debug build). ARM GCC - Ninja is the fallback.
 4. The default build type is Debug. On every CMake configure, RASC regenerates `ra/`, `ra_gen/`,
    `ra_cfg/` and `cmake/Generated*.cmake` from `configuration.xml` (`cmake/prebuild.cmake`). The
    FSP Smart Configurator task opens `configuration.xml` for editing.

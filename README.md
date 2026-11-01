@@ -51,7 +51,7 @@
 
 ## 1. Overview
 
-Reference software (RS — Product Enabling Software) in which an RA6E2 host receives a firmware
+Reference OTA project in which an RA6E2 host receives a firmware
 image over BLE, through a DA14531 BLE controller, using the standard SUOTA protocol and the
 stock Renesas SUOTA phone app, stages it into internal code flash, and has a companion swap
 bootloader install it — on trial, with automatic rollback if the new image does not confirm
@@ -60,7 +60,7 @@ flash driver, the BLE stack or the bootloader directly.
 
 At boot the application asks the bootloader what it did on this boot, prints a banner, brings up the
 DA14531 BLE link and advertises a SUOTA GATT service as `ra_suota`. The SUOTA app connects and
-streams a firmware image in blocks; the RS erases the secondary slot, programs the image into it in
+streams a firmware image in blocks; the OTA SBB erases the secondary slot, programs the image into it in
 128-byte pages and verifies it. When the app asks for the new image to be activated (SUOTA *REBOOT*), the
 application arms a trial install and resets. The bootloader swaps the secondary and primary slots,
 the new image runs on trial, passes a health gate and confirms itself — or is rolled back on the next
@@ -70,7 +70,7 @@ reset.
  ┌───────────┐  BLE (radio)  ┌───────────┐  GTL over UART   ┌──────────────────────────────────┐
  │  Phone /  │ ────────────> │  DA14531  │ ───────────────> │  RA6E2                           │
  │ SUOTA app │  image bytes  │  (radio)  │  SCI0 @115200    │  application (primary slot)      │
- │ GATT      │               │ GATT srvr │  no flow control │    RS: receive → stage → ask     │
+ │ GATT      │               │ GATT srvr │  no flow control │    OTA: receive → stage → ask    │
  │ client    │               │ holds DB  │                  │          │            │ RAM      │
  └───────────┘               └───────────┘                  │          ▼            ▼ mailbox  │
                                                             │   secondary slot   bootloader    │
@@ -82,12 +82,12 @@ reset.
 The DA14531 is only a radio modem: it runs Renesas GTL firmware, holds the GATT database and forwards
 BLE writes to the RA over UART. Its own firmware is never touched.
 
-The division of labour is strict: the RS stages and asks, the bootloader validates and moves. The RS
+The division of labour is strict: the OTA SBB stages and asks, the bootloader validates and moves. The OTA SBB
 never validates, moves or reverts an image and never writes boot state; the bootloader is the sole owner
 of the flash map, the boot record, the sector exchange and resume-after-power-cut.
 
 The reusable logic lives in `src/rs_ota_fw_update_over_ble/`. The demo application in `src/app/` is a
-thin consumer: it reports the boot outcome, starts the RS, decides when to install (SUOTA request or
+thin consumer: it reports the boot outcome, starts the OTA SBB, decides when to install (SUOTA request or
 button S1), runs the trial health gate and writes diagnostics to SEGGER RTT.
 ---
 
@@ -112,7 +112,7 @@ button S1), runs the trial health gate and writes diagnostics to SEGGER RTT.
   flash; `SecondarySlotGet()` describes the staged / rollback image.
 - **One build, one image** — the application is linked once for the primary slot, one download programs
   bootloader + application, and the OTA payload is a flat copy of the primary-slot image.
-- **No output device in the RS** — the RS never touches SEGGER RTT; every diagnostic line and status
+- **No output device in the OTA SBB** — it never touches SEGGER RTT; every diagnostic line and status
   change goes to the single application callback.
 - **Vendor/target isolation** — all FSP / BLE calls live in one HAL translation unit, the bootloader
   contract in one back-end file; the orchestrator and verifier contain no FSP/BLE references.
@@ -333,7 +333,7 @@ RESET
                └─ 5. poll ..._StatusGet() every 250 ms, S1, trial health gate
 ```
 
-The application calls only the public API. SUOTA events flow into the RS through
+The application calls only the public API. SUOTA events flow into the FW update over the air module through
 `..._hal_feed_start/_block/_end/_install_request()`, and the transport glue asks `..._StatusGet()` for the
 verdict it reports to the phone.
 
@@ -360,10 +360,10 @@ transport. RTT is output only.
 | Sink | Used by | Defined in |
 |---|---|---|
 | `OTA_LOG()` / `OTA_LOG_HEX()` | Application only (`src/app`) | `src/app/ota_fw_update_over_ble_log.c` |
-| `rs_ota_fw_update_over_ble_hal_log()` / `..._hal_logs()` | Everything inside the RS | `src/rs_ota_fw_update_over_ble/src/hal/rs_ota_fw_update_over_ble_hal_ra6e2.c` |
+| `rs_ota_fw_update_over_ble_hal_log()` / `..._hal_logs()` | Everything inside the OTA SBB | `src/rs_ota_fw_update_over_ble/src/hal/rs_ota_fw_update_over_ble_hal_ra6e2.c` |
 
-Only `src/app` may call `SEGGER_RTT_*`. The RS formats each line and hands the finished string to
-the single application callback (`cfg->p_callback`), which this demo forwards to `OTA_LOG()`. RS lines
+Only `src/app` may call `SEGGER_RTT_*`. The OTA SBB formats each line and hands the finished string to
+the single application callback (`cfg->p_callback`), which this demo forwards to `OTA_LOG()`. Its lines
 produced before the callback is registered are parked (8 lines) and replayed on registration.
 `ota_log_init()` arms up-buffer 0 as `SEGGER_RTT_MODE_NO_BLOCK_SKIP` — keep it that way, or a full FIFO
 with no viewer attached stalls the BLE thread. Define `OTA_LOG_DISABLE` to compile the trace out.
@@ -472,7 +472,7 @@ ra6e2_da14531ebz_v2/
 │   ├── app/
 │   │   ├── ota_fw_update_over_ble_app.c/.h   demo: boot report, install policy, S1, health gate
 │   │   └── ota_fw_update_over_ble_log.c/.h   RTT sink, version record, reset cause, banners
-│   ├── rs_ota_fw_update_over_ble/      ← the RS component
+│   ├── rs_ota_fw_update_over_ble/      ← the FW update over the air module
 │   │   ├── include/rs_ota_fw_update_over_ble.h   public API (the single include)
 │   │   ├── src/
 │   │   │   ├── rs_ota_fw_update_over_ble.c        orchestrator
@@ -510,7 +510,7 @@ ra6e2_da14531ebz_v2/
 
 ### 7.2 Software-Layer Architecture
 
-The RS is layered with internal HAL seams. The core (orchestrator, verifier, dependency check)
+The FW update over the air module is layered with internal HAL seams. The core (orchestrator, verifier, dependency check)
 contains no FSP/BLE references; the HAL isolates the code-flash staging
 store, the BLE/SUOTA transport and the log sink; the bootloader seam isolates the install contract.
 
@@ -518,7 +518,7 @@ store, the BLE/SUOTA transport and the log sink; the bootloader seam isolates th
 |---|---|---|
 | Application / demo | Boot report, call the public API, decide when to install and confirm, write RTT | `src/app/`, `src/ble_thread_entry.c` |
 | SUOTA server (BLE) | GATT SUOTA state machine; feeds image bytes, END and REBOOT into the HAL ingress seam | `src/rs_ota_fw_update_over_ble/ble/app_main.c`, `r_ble_SUOTAs.c` |
-| RS core | Orchestrate stage + verify, latch the install request, map results to the public API | `src/rs_ota_fw_update_over_ble/src/rs_ota_fw_update_over_ble.c`, `…_verify.c`, `…_deps.c` |
+| OTA SBB core | Orchestrate stage + verify, latch the install request, map results to the public API | `src/rs_ota_fw_update_over_ble/src/rs_ota_fw_update_over_ble.c`, `…_verify.c`, `…_deps.c` |
 | HAL (RA6E2) | Code-flash staging behind the flash guard, BLE transport task, log sink | `src/rs_ota_fw_update_over_ble/src/hal/rs_ota_fw_update_over_ble_hal_ra6e2.c` |
 | Bootloader seam | Request / confirm / report interface to the bootloader underneath | `src/hal/rs_ota_fw_update_over_ble_boot.h`, `…_boot_rsboot.c`, `…_boot_stub.c` |
 | Swap bootloader (separate project) | Validate, exchange slots, resume, roll back, record, jump | `ota_fw_bootloader/src/` |
@@ -526,7 +526,7 @@ store, the BLE/SUOTA transport and the log sink; the bootloader seam isolates th
 
 ```mermaid
 flowchart TD
-    A[Application / demo] -->|Start / StatusGet / Swap / BootResultGet| B[RS core orchestrator]
+    A[Application / demo] -->|Start / StatusGet / Swap / BootResultGet| B[OTA SBB core orchestrator]
     S[SUOTA server - app_main.c] -->|bytes / END / REBOOT| B
     B -->|stage / verify| C[HAL - RA6E2 + flash guard]
     B -->|swap_arm / confirm / last_result| K[Bootloader seam - rsboot]
@@ -624,7 +624,7 @@ yet confirmed.
 
 ### 7.5 Bootloader Seam
 
-`src/hal/rs_ota_fw_update_over_ble_boot.h` is the single interface between the RS and the bootloader
+`src/hal/rs_ota_fw_update_over_ble_boot.h` is the single interface between the OTA SBB and the bootloader
 (internal, not a public API): `swap_arm()`, `swap_and_reset()`, `confirm_and_reset()`, `last_result()`,
 `bootloader_info()`, `secondary_slot()`. Arming is not triggering: `swap_arm()` only records the
 request; the reset is what makes the bootloader act.
@@ -641,7 +641,7 @@ adding a third back-end with the same signatures. Details of the RA back-end:
 - **Mailbox copy** — the layout is a field-for-field copy of the bootloader's `src/boot_mailbox.h`
   (the master). Run the bootloader's `script/check_contract.ps1` after changing either side: a mismatch
   is silent and looks exactly like "the swap never happened".
-- **Translate, never cast** — the RS numbers swap types `TEST = 1`, `PERM = 2` (MCUboot order); the
+- **Translate, never cast** — the OTA SBB numbers swap types `TEST = 1`, `PERM = 2` (MCUboot order); the
   bootloader uses `PERM = 1`, `TEST = 2`.
 - **Trial cookie** — the bootloader's acknowledgement says *what* happened but not whether it was a
   trial, so the back-end keeps a `TRL1` cookie in `spare[0]` of the mailbox (the one field the bootloader
@@ -735,7 +735,7 @@ decides, in its own time, whether to activate it with `MEM_DEV = 0xFD000000` (RE
 would reset the board while the phone is still talking to it, and a good update would look like a
 failure.
 
-The RS therefore latches the REBOOT as `result.install_requested` (only if the image verified OK; a
+The OTA SBB therefore latches the REBOOT as `result.install_requested` (only if the image verified OK; a
 REBOOT after a bad header/CRC is answered with the error status and otherwise ignored), and the
 application acts on that flag — on trial:
 
@@ -756,7 +756,7 @@ download. There is deliberately no timeout: a staged image is not a reason to re
 ### 8.2 Trial Boot and Health Gate
 
 The new image boots on trial (`BootResultGet()` reports `trial_pending`). It prints a compact banner,
-mutes the RS "ready for download" lines, and runs a 5 s health gate (`APP_TRIAL_HEALTH_GATE_MS`),
+mutes the OTA SBB "ready for download" lines, and runs a 5 s health gate (`APP_TRIAL_HEALTH_GATE_MS`),
 then confirms itself with `Swap(CONFIRM)`, which resets once more so the bootloader can record it:
 
 ```text
@@ -826,7 +826,7 @@ the boot result (install outcome).
 
 ## 10. Limitations
 
-- **Image integrity of the download** — the payload is headerless, so the RS verifier finds no SUOTA
+- **Image integrity of the download** — the payload is headerless, so the OTA SBB verifier finds no SUOTA
   signature and accepts it without a CRC check. What protects the install is the bootloader: a
   vector-table plausibility check before the swap and a CRC32 of the exchange against the image as
   staged. A corrupted-but-plausible download would still be installed — on trial, so it is rolled back if
@@ -848,7 +848,7 @@ the boot result (install outcome).
 
 | I want to… | Edit |
 |---|---|
-| Move / resize the slots | Bootloader `src/boot_layout.h` + `memory_regions.lld`, and the RS `…_deps.h` / `…_boot.h`, `script/ota.lld` / `script/ota.ld`, `OTA_SLOT_SIZE` in `makefile.targets` and `CMakeLists.txt`. Keep erase-block alignment; run `check_contract.ps1`. |
+| Move / resize the slots | Bootloader `src/boot_layout.h` + `memory_regions.lld`, and the OTA SBB `…_deps.h` / `…_boot.h`, `script/ota.lld` / `script/ota.ld`, `OTA_SLOT_SIZE` in `makefile.targets` and `CMakeLists.txt`. Keep erase-block alignment; run `check_contract.ps1`. |
 | Decide when to install | The application — any trigger that ends in `Swap()` works. |
 | Define "healthy" | Replace the demo's 5 s gate (`APP_TRIAL_HEALTH_GATE_MS`) with real checks. |
 | Use a different bootloader (e.g. MCUboot) | Add a third `…_boot_<name>.c` implementing the seam. |
@@ -878,7 +878,7 @@ the boot result (install outcome).
 ```c
 #include "rs_ota_fw_update_over_ble.h"
 
-/* The RS's ONLY output: status changes and diagnostic lines. BLE-task context, non-blocking. */
+/* The OTA SBB's ONLY output: status changes and diagnostic lines. BLE-task context, non-blocking. */
 static void on_ota_event (rs_status_t status, const char * summary, void * p_context)
 {
     (void) status; (void) p_context;
@@ -996,7 +996,7 @@ void app_entry (void)
 | Document | Description |
 |---|---|
 | [`src/rs_ota_fw_update_over_ble/CHANGELOG.md`](src/rs_ota_fw_update_over_ble/CHANGELOG.md) | Change history, including integration notes |
-| [`docs/PES_ARCHITECTURE_ota_fw_update_over_ble.md`](docs/PES_ARCHITECTURE_ota_fw_update_over_ble.md) | RS layering and runtime flow |
+| [`docs/PES_ARCHITECTURE_ota_fw_update_over_ble.md`](docs/PES_ARCHITECTURE_ota_fw_update_over_ble.md) | OTA SBB layering and runtime flow |
 | [`docs/SUOTA_Design_Meeting.md`](docs/SUOTA_Design_Meeting.md) | Design-meeting overview: architecture, protocol, API, bug log |
 | [`docs/SUOTA_RA6E2_DA14531_Working.md`](docs/SUOTA_RA6E2_DA14531_Working.md) | Working protocol, GATT profile, and root-cause bug log |
 | [`docs/BLE_SUOTA_Flash_Save.md`](docs/BLE_SUOTA_Flash_Save.md) | Plain-language flash-save walkthrough |

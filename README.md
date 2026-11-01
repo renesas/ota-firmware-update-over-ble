@@ -209,12 +209,14 @@ generated FSP content (`ra/`, `ra_gen/`, `ra_cfg/`) is produced by RASC as part 
 
 ### Step 1.B: Open the Project in VS Code
 
-1. File → Open Folder and select the `ra6e2_da14531ebz_v2` folder.
-2. When prompted for a kit, select `Renesas Platform: Arm LLVM Toolchain - 21.1.1` (the same toolchain as
+1. In VS code, File → Open Folder and select the `examples/fpb-ra6e2` folder
+2. Select the Debug build variant (Command Palette → `CMake: Select Variant` → Debug).
+3. When prompted for a kit, select `Renesas Platform: Arm LLVM Toolchain - 21.1.1` (the same toolchain as
    the e² studio Debug build). ARM GCC - Ninja is the fallback.
-3. The default build type is Debug. On every CMake configure, RASC regenerates `ra/`, `ra_gen/`,
+4. The default build type is Debug. On every CMake configure, RASC regenerates `ra/`, `ra_gen/`,
    `ra_cfg/` and `cmake/Generated*.cmake` from `configuration.xml` (`cmake/prebuild.cmake`). The
    FSP Smart Configurator task opens `configuration.xml` for editing.
+5. After ra* autogenerate files are generated, press on Build
 
 ### Step 2: Editing the SUOTA BLE Profile (QE for BLE)
 

@@ -167,9 +167,9 @@ button S1), runs the trial health gate and writes diagnostics to SEGGER RTT.
 
 The project builds from e² studio (managed build: `.cproject`, `makefile.targets`) and from VS Code
 (CMake: `CMakeLists.txt`, `cmake/`, `.vscode/`) out of the same sources. Neither build uses the other's
-files. For VS Code, run `setup-env.cmd` (Windows) or `setup-env.sh` (Linux) once. It finds the tools
-and stores them as user environment variables (`ARM_TOOLCHAIN_PATH`, `ARM_GCC_TOOLCHAIN_PATH`,
-`ARM_GDB_PATH`, `RENESAS_GDB_PYTHONHOME`, `NINJA_PATH`, `RASC_EXE_PATH`). Restart VS Code afterwards.
+files. For VS Code, the Renesas Platform extension provides the toolchain kits, and the CMake files
+find the LLVM (ATfE) toolchain, Ninja and the Smart Configurator (RASC) automatically. Set
+`ARM_TOOLCHAIN_PATH` or `RASC_EXE_PATH` only to override them.
 
 ---
 
@@ -209,11 +209,10 @@ generated FSP content (`ra/`, `ra_gen/`, `ra_cfg/`) is produced by RASC as part 
 
 ### Step 1.B: Open the Project in VS Code
 
-1. Run `setup-env.cmd` once (see [§3.2](#32-software-requirements)) and restart VS Code.
-2. File → Open Folder and select the `ra6e2_da14531ebz_v2` folder.
-3. When prompted for a kit, select `Renesas Platform: Arm LLVM Toolchain - 21.1.1` (the same toolchain as
+1. File → Open Folder and select the `ra6e2_da14531ebz_v2` folder.
+2. When prompted for a kit, select `Renesas Platform: Arm LLVM Toolchain - 21.1.1` (the same toolchain as
    the e² studio Debug build). ARM GCC - Ninja is the fallback.
-4. The default build type is Debug. On every CMake configure, RASC regenerates `ra/`, `ra_gen/`,
+3. The default build type is Debug. On every CMake configure, RASC regenerates `ra/`, `ra_gen/`,
    `ra_cfg/` and `cmake/Generated*.cmake` from `configuration.xml` (`cmake/prebuild.cmake`). The
    FSP Smart Configurator task opens `configuration.xml` for editing.
 
@@ -532,7 +531,6 @@ ra6e2_da14531ebz_v2/
 ├── CMakeLists.txt  Config.cmake        VS Code / CMake build (independent of the e² studio build)
 ├── cmake/                              toolchain files (llvm/gcc), RASC prebuild, OTA size check
 ├── .vscode/                            CMake kits, tasks, launch configurations
-├── setup-env.cmd / setup-env.sh        tool discovery for the VS Code build
 ├── configuration.xml                   FSP stacks + pin configuration
 ├── qe_gen/                             [generated] QE working area — qe_gen/ble EXCLUDED from build
 ├── ra/  ra_gen/  ra_cfg/               [generated] FSP, CMSIS, FreeRTOS, GTL
@@ -1016,8 +1014,8 @@ void app_entry (void)
   the callback must match both `…_PATCH_DATA_WRITE_CMD` and the computed `WRITE_REQ` id.
 
 **Symptom**: VS Code configure fails with "rasc not found" or "ATfE not found"
-- Run `setup-env.cmd` / `setup-env.sh`, restart VS Code, and check that `RASC_EXE_PATH` points to the
-  FSP 6.5.0 Smart Configurator and `ARM_TOOLCHAIN_PATH` to the ATfE `bin` folder.
+- Set `RASC_EXE_PATH` to the FSP 6.5.0 Smart Configurator and `ARM_TOOLCHAIN_PATH` to the ATfE
+  `bin` folder, then restart VS Code.
 
 **Symptom**: VS Code "Renesas GDB Debugging Default" fails with "Invalid filename"
 - The `.sbd` next to the `.elf` is missing; rebuild (a post-build step creates it with RASC).

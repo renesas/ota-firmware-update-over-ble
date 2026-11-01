@@ -26,6 +26,7 @@
    - 6.1 [RTT Terminal](#61-rtt-terminal)
    - 6.2 [User Button S1](#62-user-button-s1)
    - 6.3 [SUOTA App Settings](#63-suota-app-settings)
+   - 6.4 [Performing an OTA Update](#64-performing-an-ota-update)
 7. [Data Flow Architecture](#7-data-flow-architecture)
    - 7.1 [Project Structure](#71-project-structure)
    - 7.2 [Software-Layer Architecture](#72-software-layer-architecture)
@@ -209,33 +210,51 @@ generated FSP content (`ra/`, `ra_gen/`, `ra_cfg/`) is produced by RASC as part 
 
 ### Step 1.B: Open the Project in VS Code
 
-1. In VS code, File → Open Folder and select the `examples/fpb-ra6e2` folder
+1. Open the project in one of two ways:
+   - In VS Code: File → Open Folder, then select the `examples/fpb-ra6e2` folder.
+   - In Windows Explorer: open `examples\fpb-ra6e2` in your clone and double-click
+     `OTA Update over BLE.code-workspace`.
 2. Select the Debug build variant (Command Palette → `CMake: Select Variant` → Debug).
 3. When prompted for a kit, select `Renesas Platform: Arm LLVM Toolchain - 21.1.1` (the same toolchain as
    the e² studio Debug build). ARM GCC - Ninja is the fallback.
 4. The default build type is Debug. On every CMake configure, RASC regenerates `ra/`, `ra_gen/`,
    `ra_cfg/` and `cmake/Generated*.cmake` from `configuration.xml` (`cmake/prebuild.cmake`). The
    FSP Smart Configurator task opens `configuration.xml` for editing.
-5. After ra* autogenerate files are generated, press on Build
+5. Once RASC has generated `ra/`, `ra_gen/` and `ra_cfg/`, click Build in the status bar.
 
-### Step 2: Editing the SUOTA BLE Profile (QE for BLE)
+### **OPTIONAL** Step 2: Editing the SUOTA BLE Profile (QE for BLE)
 
-Because the compiled BLE server is a mirror of QE's output, use the helper to keep the two in sync
-(QE only preserves code inside its `Start user code` / `End user code` blocks):
+Only needed if you change the BLE profile (services, characteristics, UUIDs). Skip it otherwise.
 
-```bash
-scripts/qe_ble.bat push   # copy the compiled BLE sources -> qe_gen/ble  (BEFORE "Generate Code")
-# ... regenerate the profile in QE for BLE ...
-scripts/qe_ble.bat pull   # copy qe_gen/ble -> compiled sources          (AFTER  "Generate Code")
-scripts/qe_ble.bat diff   # list differences, change nothing
-```
+The BLE server that is compiled lives in `src/rs_ota_fw_update_over_ble/ble/`. QE for BLE does not
+write there: it generates into its own folder, `qe_gen/ble/`, which is excluded from the build. The
+helper `scripts\qe_ble.bat` copies between the two folders. Run it from a command prompt in
+`examples\fpb-ra6e2`:
+
+| Command | When | What it does |
+|---|---|---|
+| `scripts\qe_ble.bat push` | Before *Generate Code* | Copies `src/rs_ota_fw_update_over_ble/ble/` → `qe_gen/ble/`, so QE starts from the current code |
+| `scripts\qe_ble.bat pull` | After *Generate Code* | Copies `qe_gen/ble/` → `src/rs_ota_fw_update_over_ble/ble/`, so the build uses the new profile |
+| `scripts\qe_ble.bat diff` | Any time | Lists the files that differ between the two folders; changes nothing |
+
+Procedure:
+
+1. Run `scripts\qe_ble.bat push`.
+2. In e² studio, open QE for BLE, edit the profile, and click *Generate Code*.
+3. Run `scripts\qe_ble.bat pull`.
+4. Re-apply the three manual fixes in `src/rs_ota_fw_update_over_ble/ble/app_main.c` (below).
+5. Build and check that the phone still connects and the SUOTA download works.
 
 > [!WARNING]
-> A QE regeneration drops two hand-edits that live in generated regions of `app_main.c`: the removal of
-> the duplicate `R_BLE_VS_GetBdAddr()` call in `BLE_GAP_EVENT_STACK_ON` (otherwise advertising starts
-> twice at boot), and the `(false == s_ota_erase_active)` term in the main loop (otherwise the BLE task
-> blocks during the staging erase). Both are commented in place — re-apply them after every
-> *Generate Code*.
+> QE keeps only the code between its `Start user code` / `End user code` comments. Everything else in
+> `app_main.c` is rewritten on every *Generate Code*, which undoes three fixes in that file. Each fix
+> is marked with a comment in the current code, so compare with `git diff` after step 3 and restore:
+>
+> | Location in `app_main.c` | QE generates | Restore to | Why |
+> |---|---|---|---|
+> | `gap_cb()`, `case BLE_GAP_EVENT_STACK_ON` | a call to `R_BLE_VS_GetBdAddr(...)` | no call (keep only the comment) | The BLE driver already requests the address; a second request starts advertising twice at boot |
+> | `ble_init()`, after `RM_BLE_ABS_Open()` | `return err;` | `return (ble_status_t) err;` | Explicit cast instead of an implicit narrowing (compiler warning) |
+> | `app_main()` main loop, before `xEventGroupWaitBits()` | `if(0 != R_BLE_IsTaskFree())` | `if((0 != R_BLE_IsTaskFree()) && (false == s_ota_erase_active))` | Keeps the BLE task running while the staging slot is erased; without it the erase stalls |
 
 ### Step 3: Build
 
@@ -322,14 +341,35 @@ Flash the `.elf` with J-Link using the bundled connection/launch files
 
 ### Step 4.B: Flash & Run in VS Code
 
-Press Ctrl+Shift+D (Run and Debug) and start one of the `.vscode/launch.json` configurations:
+Connect the board's USB connector (on-board J-Link OB) to the PC, then use one of the two options.
+Both program the complete image — bootloader at `0x00000000` and application at `0x00010000`.
 
-| Configuration | Debugger | Needs |
-|---|---|---|
-| **Renesas GDB Debugging Default** | Renesas debugger (`renesas-hardware`), J-Link, device `R7FA6E2BB` | `RENESAS_GDB_PYTHONHOME`; the `.sbd` next to the `.elf` |
-| **Renesas GDB Debugging Server** | `cortex-debug` against an external J-Link GDB server on `localhost:2331` | `ARM_GDB_PATH`; a running J-Link GDB server |
+**Flash and debug**
 
-The launch configurations load the CMake target (`build/Debug/ota_update_over_ble.elf`) and run to `main()`.
+1. Press Ctrl+Shift+D (Run and Debug).
+2. Select Renesas GDB Debugging Default and press F5.
+3. The debugger programs `build/Debug/ota_update_over_ble.elf` and stops at `main()`. Press F5 to run.
+
+**Flash only (no debugger)**
+
+Program the `.hex` from the build with SEGGER J-Link Commander (`JLink.exe`, installed with the J-Link
+software). Run it from a command prompt in `examples\fpb-ra6e2`:
+
+```text
+JLink.exe -device R7FA6E2BB -if SWD -speed 4000 -autoconnect 1
+J-Link> loadfile build/Debug/ota_update_over_ble.hex
+J-Link> r
+J-Link> g
+J-Link> exit
+```
+
+The board starts from the bootloader and runs the application. Open the RTT terminal
+([§6.1](#61-rtt-terminal)) to see the boot banner.
+
+> [!NOTE]
+> `.vscode/launch.json` also has Renesas GDB Debugging Server, for the `cortex-debug` extension. It
+> connects to a J-Link GDB Server that you start yourself on `localhost:2331`, and needs the
+> `ARM_GDB_PATH` environment variable set to the GDB `bin` folder.
 
 ### After flashing (both IDEs)
 
@@ -489,6 +529,45 @@ What the firmware does with these values:
   that write (`GPIO_MAP` is accepted and discarded). They are not pins on the RA6E2 side.
 - **Block size** is the length the app writes to *PATCH_LEN*: the image is sent in 1024-byte blocks, each
   streamed as several `PATCH_DATA` chunks and acknowledged with `SERV_STATUS = 0x02` before the next one.
+
+### 6.4 Performing an OTA Update
+
+#### Install the SUOTA app
+
+Install the Renesas (Dialog) SUOTA app on the phone from Google Play or the Apple App Store (search
+for "Dialog SUOTA"). It is the only tool needed on the phone side; no custom app is used.
+
+#### Prepare the new image
+
+1. Flash the board as in [Step 4](#step-4-flash--run) and open the RTT terminal ([§6.1](#61-rtt-terminal)).
+   The banner shows the running version, e.g. `app  ra6e2_da14531evz v1.0.0`.
+2. Raise the version in `src/app/ota_fw_update_over_ble_log.h`, e.g. `APP_VERSION_PATCH` from `(0U)` to
+   `(1U)`, so the update is visible in the log.
+3. Build, but do not flash. The OTA payload is:
+   - VS Code: `build/Debug/ota_update_over_ble_ota.bin`
+   - e² studio: `Debug/ra6e2_da14531ebz_v2_ota.bin`
+
+   Send this file only — not the `.elf`, `.hex` or `.srec`.
+
+#### Copy the image to the phone
+
+- **Android:** start the SUOTA app once (it creates a `Suota` folder in the phone's internal storage).
+  Connect the phone to the PC with a USB cable, select *File transfer* on the phone, and copy the
+  `_ota.bin` file into the `Suota` folder.
+- **iOS:** connect the phone to the PC, open Finder (macOS) or iTunes (Windows), select the phone, go to
+  *File Sharing*, select the SUOTA app, and add the `_ota.bin` file.
+
+#### Run the update
+
+1. Open the SUOTA app. It scans and lists nearby devices. Tap `ra_suota`.
+2. Tap *Update* and select the `_ota.bin` file.
+3. Set the parameters exactly as in [§6.3](#63-suota-app-settings) and tap *Send to device*.
+4. The app shows the progress. When the transfer ends, the RTT log shows
+   `image staged + verified (… bytes) - awaiting SUOTA reboot request or S1`.
+5. When the app asks whether to reboot the device, select *Yes, reboot* (or press S1 on the board).
+6. The board resets and the bootloader installs the new image. The banner shows `TRIAL BOOT` with the
+   new version. After the 5 s health gate the image confirms itself and becomes permanent
+   (see [§8.1](#81-runtime-flow--install-on-suota-reboot) and [§8.2](#82-trial-boot-and-health-gate)).
 
 ---
 ---

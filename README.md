@@ -131,6 +131,25 @@ button S1), runs the trial health gate and writes diagnostics to SEGGER RTT.
 | User button S1 (P304) | Manual install trigger |
 | SEGGER RTT (SWD) | Diagnostics / console (channel 0), output only |
 
+```
+                                          FPB-RA6E2 (top view, not to scale)
+                         ┌──────────────────────────────────────────────────────────────────┐
+                         │       ═══════ Arduino Uno R3 header ═══════          ┌────────┐  │
+┌──────────────────┐     │   ┌────────┐                                         │    USB │  │
+│ US159-DA14531EVZ │═════╪══►│ PMOD2  │                                         │ J-Link │  │
+│ (BLE controller) │     │   └────────┘       ┌──────────────────────┐          │     OB │  │
+└──────────────────┘     │   ┌────────┐       │                      │          └────────┘  │
+                         │   │ PMOD1  │       │      RA6E2 MCU       │                      │
+                         │   └────────┘       │                      │          LED2 LED1   │
+                         │                    └──────────────────────┘         [S1] ──┐     │
+                         │                                                     [S2]   │     │
+                         │       ═══════ Arduino Uno R3 header ═══════          ▲     │     │
+                         └──────────────────────────────────────────────────────┼─────┼─────┘
+                                                                                │     │
+         S2: Reset - reboots; the bootloader installs or rolls back the image ──┘     │
+         S1: User button (P304) - installs the staged image ──────────────────────────┘
+```
+
 ### 3.2 Software Requirements
 
 | Tool | Notes |
@@ -404,6 +423,18 @@ A transfer then logs concise progress lines:
 > end of the transfer with *"Not enough internal memory space for patch"* (`0x07`).
 
 ### 6.2 User Button S1
+
+```
+        FPB-RA6E2 (top view)
+┌──────────────────────────────────┐
+│ ┌───────┐                ┌─────┐ │
+│ │ PMOD2 │   ┌───────┐    │ USB │ │
+│ └───────┘   │ RA6E2 │    └─────┘ │
+│ ┌───────┐   └───────┘            │
+│ │ PMOD1 │                 [S1] ◄─┼── S1: User button (P304)
+│ └───────┘                 [S2]   │
+└──────────────────────────────────┘
+```
 
 Pressing S1 (the FPB-RA6E2 user button, P304) installs whatever is already staged, so the
 swap/trial/revert sequence can be replayed from a board that has been sitting idle — no phone, no

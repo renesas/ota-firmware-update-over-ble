@@ -3,9 +3,9 @@
 
 | | |
 |---|---|
-| **Host MCU** | RA6E2 (`R7FA6E2BB3CFM`, Cortex-M33) on the **FPB-RA6E2** board |
+| **Host MCU** | RA6E2 (`R7FA6E2BB3CFM`, Cortex-M33) on the FPB-RA6E2 board |
 | **BLE controller** | DA14531 (US159-DA14531EVZ on PMOD2) — GTL firmware over UART; the RA runs the BLE stack, the DA is a radio pipe |
-| **Sender** | Stock Renesas **SUOTA** app — no custom phone app (see [SUOTA app settings](#63-suota-app-settings)) |
+| **Sender** | Stock Renesas SUOTA app — no custom phone app (see [SUOTA app settings](#63-suota-app-settings)) |
 | **Bootloader** | Companion `ota_fw_bootloader` — MCUboot-style *swap using scratch*, embedded in this image at `0x00000000` |
 | **Software** | Renesas FSP 6.5.0 + FreeRTOS + `r_ble_gtl` / `rm_ble_abs` |
 | **Public API** | `Start` · `Stop` · `StatusGet` · `Swap` · `BootResultGet` · `BootloaderInfoGet` · `SecondarySlotGet` |
@@ -51,24 +51,24 @@
 
 ## 1. Overview
 
-Reference software (**RS** — Product Enabling Software) in which an **RA6E2 host receives a firmware
-image over BLE**, through a **DA14531** BLE controller, using the standard **SUOTA** protocol and the
-stock **Renesas SUOTA** phone app, stages it into internal code flash, and has a companion **swap
-bootloader** install it — **on trial**, with automatic **rollback** if the new image does not confirm
-itself. The whole workflow sits behind **one public header**, so the application never touches the FSP
+Reference software (RS — Product Enabling Software) in which an RA6E2 host receives a firmware
+image over BLE, through a DA14531 BLE controller, using the standard SUOTA protocol and the
+stock Renesas SUOTA phone app, stages it into internal code flash, and has a companion swap
+bootloader install it — on trial, with automatic rollback if the new image does not confirm
+itself. The whole workflow sits behind one public header, so the application never touches the FSP
 flash driver, the BLE stack or the bootloader directly.
 
 At boot the application asks the bootloader what it did on this boot, prints a banner, brings up the
-DA14531 BLE link and advertises a **SUOTA GATT service** as **`ra_suota`**. The SUOTA app connects and
-streams a firmware image in blocks; the RS erases the **secondary slot**, programs the image into it in
+DA14531 BLE link and advertises a SUOTA GATT service as `ra_suota`. The SUOTA app connects and
+streams a firmware image in blocks; the RS erases the secondary slot, programs the image into it in
 128-byte pages and verifies it. When the app asks for the new image to be activated (SUOTA *REBOOT*), the
-application arms a **trial** install and resets. The bootloader swaps the secondary and primary slots,
+application arms a trial install and resets. The bootloader swaps the secondary and primary slots,
 the new image runs on trial, passes a health gate and confirms itself — or is rolled back on the next
 reset.
 
 ```
  ┌───────────┐  BLE (radio)  ┌───────────┐  GTL over UART   ┌──────────────────────────────────┐
- │  Phone /  │ ────────────▶ │  DA14531  │ ───────────────▶ │  RA6E2                           │
+ │  Phone /  │ ────────────> │  DA14531  │ ───────────────> │  RA6E2                           │
  │ SUOTA app │  image bytes  │  (radio)  │  SCI0 @115200    │  application (primary slot)      │
  │ GATT      │               │ GATT srvr │  no flow control │    RS: receive → stage → ask     │
  │ client    │               │ holds DB  │                  │          │            │ RAM      │
@@ -79,16 +79,16 @@ reset.
                                                             └──────────────────────────────────┘
 ```
 
-The **DA14531 is only a radio modem**: it runs Renesas GTL firmware, holds the GATT database and forwards
+The DA14531 is only a radio modem: it runs Renesas GTL firmware, holds the GATT database and forwards
 BLE writes to the RA over UART. Its own firmware is never touched.
 
-The division of labour is strict: **the RS stages and asks, the bootloader validates and moves.** The RS
+The division of labour is strict: the RS stages and asks, the bootloader validates and moves. The RS
 never validates, moves or reverts an image and never writes boot state; the bootloader is the sole owner
 of the flash map, the boot record, the sector exchange and resume-after-power-cut.
 
 The reusable logic lives in `src/rs_ota_fw_update_over_ble/`. The demo application in `src/app/` is a
 thin consumer: it reports the boot outcome, starts the RS, decides when to install (SUOTA request or
-button **S1**), runs the trial health gate and writes diagnostics to SEGGER RTT.
+button S1), runs the trial health gate and writes diagnostics to SEGGER RTT.
 ---
 
 ## 2. Key Features
@@ -104,7 +104,7 @@ button **S1**), runs the trial health gate and writes diagnostics to SEGGER RTT.
   the DA14531 UART with the DTC and replays it, so not a byte of GTL traffic is lost (see
   [Architecture](#83-flash-guard)).
 - **Install on request, not on completion** — a finished download only *stages* the image; it is
-  installed when the phone sends SUOTA REBOOT, or when the user presses **S1**.
+  installed when the phone sends SUOTA REBOOT, or when the user presses S1.
 - **Trial boot + rollback** — the demo installs on trial; an image that fails to boot, to bring BLE up,
   or to pass its health gate is rolled back by the next reset.
 - **Boot reporting** — `BootResultGet()` says whether this boot installed, reverted or rejected an image
@@ -128,25 +128,25 @@ button **S1**), runs the trial health gate and writes diagnostics to SEGGER RTT.
 | FPB-RA6E2 board (`R7FA6E2BB3CFM`) | Host MCU |
 | DA14531 module (US159-DA14531EVZ) on PMOD2 | BLE controller |
 | UART link SCI0 @ 115200 (no flow control, no FIFO) | GTL transport RA ↔ DA14531 |
-| User button **S1** (P304) | Manual install trigger |
+| User button S1 (P304) | Manual install trigger |
 | SEGGER RTT (SWD) | Diagnostics / console (channel 0), output only |
 
 ### 3.2 Software Requirements
 
 | Tool | Notes |
 |---|---|
-| Renesas FSP **6.5.0** | BSP, drivers, FreeRTOS port, `r_ble_gtl` / `rm_ble_abs` |
+| Renesas FSP 6.5.0 | BSP, drivers, FreeRTOS port, `r_ble_gtl` / `rm_ble_abs` |
 | e² studio | Primary IDE; opens the project via the committed `.cproject` / `configuration.xml` |
 | RA Smart Configurator (RASC) | Regenerates `ra/`, `ra_gen/`, `ra_cfg/` from `configuration.xml` |
 | QE for BLE | Edits the SUOTA GATT profile; output merged via `scripts/qe_ble.bat` |
-| LLVM for Arm (ATfE) **21.1.1** | `clang` / `ld.lld` — e² studio Debug configuration and the VS Code **ARM LLVM (ATfE) - Ninja** kit (default) |
-| Arm GNU Embedded toolchain **13.3** | `arm-none-eabi-gcc` (newlib) — e² studio Release configuration and the VS Code **ARM GCC - Ninja** kit (fallback) |
+| LLVM for Arm (ATfE) 21.1.1 | `clang` / `ld.lld` — e² studio Debug configuration and the VS Code ARM LLVM (ATfE) - Ninja kit (default) |
+| Arm GNU Embedded toolchain 13.3 | `arm-none-eabi-gcc` (newlib) — e² studio Release configuration and the VS Code ARM GCC - Ninja kit (fallback) |
 | VS Code *(optional)* | Second IDE, built with CMake (`CMakeLists.txt`) — independent of the e² studio build; needs the CMake Tools and Renesas debug extensions |
 | CMake ≥ 3.20 + Ninja | VS Code build only |
 | SEGGER J-Link + RTT Viewer | Flashing, debugging, and console output |
-| Android phone + **Renesas SUOTA app** | The image sender — configure it as in [SUOTA app settings](#63-suota-app-settings) |
+| Android phone + Renesas SUOTA app | The image sender — configure it as in [SUOTA app settings](#63-suota-app-settings) |
 
-The project builds from **e² studio** (managed build: `.cproject`, `makefile.targets`) and from **VS Code**
+The project builds from e² studio (managed build: `.cproject`, `makefile.targets`) and from VS Code
 (CMake: `CMakeLists.txt`, `cmake/`, `.vscode/`) out of the same sources. Neither build uses the other's
 files. For VS Code, run `setup-env.cmd` (Windows) or `setup-env.sh` (Linux) once. It finds the tools
 and stores them as user environment variables (`ARM_TOOLCHAIN_PATH`, `ARM_GCC_TOOLCHAIN_PATH`,
@@ -158,8 +158,8 @@ and stores them as user environment variables (`ARM_TOOLCHAIN_PATH`, `ARM_GCC_TO
 
 > [!CAUTION]
 > Never hand-edit `ra/`, `ra_gen/`, `ra_cfg/`. They are regenerated whenever `configuration.xml` is
-> saved (and, in VS Code, on every CMake configure). Likewise, `qe_gen/ble/` is **QE's working/merge
-> area and is excluded from the build** (`.cproject` and `CMakeLists.txt`); the sources actually compiled are the mirror under
+> saved (and, in VS Code, on every CMake configure). Likewise, `qe_gen/ble/` is QE's working/merge
+> area and is excluded from the build (`.cproject` and `CMakeLists.txt`); the sources actually compiled are the mirror under
 > `src/rs_ota_fw_update_over_ble/ble/`.
 
 ### 4.1 BSP Settings
@@ -181,22 +181,22 @@ and stores them as user environment variables (`ARM_TOOLCHAIN_PATH`, `ARM_GCC_TO
 
 ### Step 1: Open the Project
 
-> **Note:** Use Step **1.A** for **e² studio** and Step **1.B** for **VS Code**
+> **Note:** Use Step 1.A for e² studio and Step 1.B for VS Code
 
 ### Step 1.A: Open the Project in e² studio
 
-Open the folder in **e² studio** (it uses the committed `.cproject` and `configuration.xml`). The
+Open the folder in e² studio (it uses the committed `.cproject` and `configuration.xml`). The
 generated FSP content (`ra/`, `ra_gen/`, `ra_cfg/`) is produced by RASC as part of project setup.
 
 ### Step 1.B: Open the Project in VS Code
 
 1. Run `setup-env.cmd` once (see [§3.2](#32-software-requirements)) and restart VS Code.
-2. **File → Open Folder** and select the `ra6e2_da14531ebz_v2` folder.
-3. When prompted for a kit, select **ARM LLVM (ATfE) - Ninja** (the same toolchain as the e² studio Debug
-   build). **ARM GCC - Ninja** is the fallback.
-4. The default build type is **Debug**. On every CMake configure, RASC regenerates `ra/`, `ra_gen/`,
+2. File → Open Folder and select the `ra6e2_da14531ebz_v2` folder.
+3. When prompted for a kit, select ARM LLVM (ATfE) - Ninja (the same toolchain as the e² studio Debug
+   build). ARM GCC - Ninja is the fallback.
+4. The default build type is Debug. On every CMake configure, RASC regenerates `ra/`, `ra_gen/`,
    `ra_cfg/` and `cmake/Generated*.cmake` from `configuration.xml` (`cmake/prebuild.cmake`). The
-   **FSP Smart Configurator** task opens `configuration.xml` for editing.
+   FSP Smart Configurator task opens `configuration.xml` for editing.
 
 ### Step 2: Editing the SUOTA BLE Profile (QE for BLE)
 
@@ -219,7 +219,7 @@ scripts/qe_ble.bat diff   # list differences, change nothing
 
 ### Step 3: Build
 
-> **Note:** Use Step **3.A** for **e² studio** and Step **3.B** for **VS Code**
+> **Note:** Use Step 3.A for e² studio and Step 3.B for VS Code
 
 ### Step 3.A: Build in e² studio
 
@@ -228,24 +228,23 @@ Build from e² studio. Besides the generated `.elf` / `.srec`, the build drops t
 
 | File | What it is |
 |---|---|
-| `ra6e2_da14531ebz_v2.elf` / `.srec` | **The image to flash on the bench.** Contains the bootloader at `0x00000000` *and* the application at `0x00010000`, so one download programs a complete, bootable board. |
-| `ra6e2_da14531ebz_v2_ota.bin` | **The OTA payload** — the file to send with the SUOTA app. A raw copy of the primary-slot image, ready to be downloaded into the secondary slot. Contains **no** bootloader. ~57 KB. |
+| `ra6e2_da14531ebz_v2.elf` / `.srec` | The image to flash on the bench. Contains the bootloader at `0x00000000` *and* the application at `0x00010000`, so one download programs a complete, bootable board. |
+| `ra6e2_da14531ebz_v2_ota.bin` | The OTA payload — the file to send with the SUOTA app. A raw copy of the primary-slot image, ready to be downloaded into the secondary slot. Contains no bootloader. ~57 KB. |
 | `ra6e2_da14531ebz_v2_ota.map` | Linker map of the same build — every symbol and address of the payload, for post-mortem work on an image installed over the air. (No `_ota.elf` is produced: a second ELF confuses other IDEs; the main `.elf` is the debug image.) |
 
-The payload is a **flat, headerless binary** — deliberately so. The bootloader reads the initial stack
+The payload is a flat, headerless binary — deliberately so. The bootloader reads the initial stack
 pointer and reset vector from offset 0 of the slot, so prepending a SUOTA header would shift those words
 and the swap would be rejected. No padding is needed either: the slot is erased to `0xFF` before staging.
 
 These rules live in `makefile.targets` at the project root, which the generated `Debug/makefile` picks
-up via `-include ../makefile.targets`. That include line comes from the RASC makefile *template*, so
-**the rules survive "Generate Project Content"**. A post-build guard fails the build if the image
+up via `-include ../makefile.targets`. That include line comes from the RASC makefile *template*, so the rules survive "Generate Project Content". A post-build guard fails the build if the image
 outgrows the `0x18000` slot — which also catches a `script/ota.lld` that lost its `FLASH_START` /
 `FLASH_LENGTH` override. `make clean` removes both `_ota` artifacts.
 
 #### The linker script
 
-The application is linked with **`script/ota.lld`**, selected for the e² studio Debug configuration and
-for the VS Code LLVM kit (the VS Code GCC kit uses the equivalent **`script/ota.ld`**). It includes the
+The application is linked with `script/ota.lld`, selected for the e² studio Debug configuration and
+for the VS Code LLVM kit (the VS Code GCC kit uses the equivalent `script/ota.ld`). It includes the
 generated `memory_regions.lld`, overrides `FLASH_START = 0x00010000` / `FLASH_LENGTH = 0x00018000`, trims
 `RAM_LENGTH` by `0x20` for the boot mailbox, then includes `fsp_gen.lld`. The override lives in its own
 file because "Generate Project Content" rewrites both `script/fsp.lld` and `memory_regions.lld`; an
@@ -254,20 +253,20 @@ cannot boot. Linker `ASSERT`s fail the build if the link address or length is wr
 
 #### The embedded bootloader
 
-There is **no separate step to program the bootloader**. The pre-built image is committed as
+There is no separate step to program the bootloader. The pre-built image is committed as
 `src/rs_ota_fw_update_over_ble/bootloader.bin` and linked into every build:
 
 | Piece | Role |
 |---|---|
-| `src/rs_ota_fw_update_over_ble/bootloader.bin` | The bootloader bytes (7708 B). Frozen ROM content — does **not** depend on the `ota_fw_bootloader` project being present or built. |
+| `src/rs_ota_fw_update_over_ble/bootloader.bin` | The bootloader bytes (7708 B). Frozen ROM content — does not depend on the `ota_fw_bootloader` project being present or built. |
 | `src/rs_ota_fw_update_over_ble/src/hal/rs_ota_fw_update_over_ble_boot_rsboot.c` | Opens with a `.incbin` block that turns the `.bin` into a `.bootloader` input section. Deliberately outside the back-end guard, so switching the back-end off cannot silently produce an image without a bootloader. |
 | `script/ota.lld` / `script/ota.ld` | Places `.bootloader` at `0x00000000` (`KEEP`, or `--gc-sections` drops it — nothing references those bytes) and asserts it fits the 16 KB `BOOT_BOOTLOADER_SIZE` window. |
 | `makefile.targets` / `CMakeLists.txt` | Strips `.bootloader` from the `_ota.bin` payload, and declares `bootloader.bin` as a dependency (`.incbin` records none). |
 
 Consequences worth knowing:
 
-- A mass erase followed by one download leaves a fully bootable board — but it also **overwrites any
-  bootloader already on the target**.
+- A mass erase followed by one download leaves a fully bootable board — but it also overwrites any
+  bootloader already on the target.
 - A debug session starts at the *application's* `Reset_Handler`; the bootloader is programmed but only
   runs after a real reset.
 - The bundled bootloader is identified by fingerprint (CRC32 over its 7708 bytes = `0xE9645C84` →
@@ -282,7 +281,7 @@ Consequences worth knowing:
 
 ### Step 3.B: Build in VS Code
 
-Press **Build** on the status bar (or in the CMake view), or run the **Build Project** task. The output
+Press Build on the status bar (or in the CMake view), or run the Build Project task. The output
 goes to `build/Debug/`. It has the same `.elf`, `_ota.bin` and `_ota.elf` as the e² studio build, plus a
 `.sbd` SmartBundle that the Renesas debugger needs.
 
@@ -294,7 +293,7 @@ goes to `build/Debug/`. It has the same `.elf`, `_ota.bin` and `_ota.elf` as the
 
 ### Step 4: Flash & Run
 
-> **Note:** Use Step **4.A** for **e² studio** and Step **4.B** for **VS Code**
+> **Note:** Use Step 4.A for e² studio and Step 4.B for VS Code
 
 ### Step 4.A: Flash & Run in e² studio
 
@@ -303,7 +302,7 @@ Flash the `.elf` with J-Link using the bundled connection/launch files
 
 ### Step 4.B: Flash & Run in VS Code
 
-Press **Ctrl+Shift+D** (**Run and Debug**) and start one of the `.vscode/launch.json` configurations:
+Press Ctrl+Shift+D (Run and Debug) and start one of the `.vscode/launch.json` configurations:
 
 | Configuration | Debugger | Needs |
 |---|---|---|
@@ -315,7 +314,7 @@ The launch configurations load the CMake target (`build/Debug/ra6e2_da14531ebz_v
 ### After flashing (both IDEs)
 
 A single download of the `.elf` programs the
-bootloader at `0x00000000` as well as the application at `0x00010000`. **Reset the board** after a
+bootloader at `0x00000000` as well as the application at `0x00010000`. Reset the board after a
 debug session to run through the bootloader. Execution then reaches the OTA workflow via:
 
 ```text
@@ -334,17 +333,17 @@ RESET
                └─ 5. poll ..._StatusGet() every 250 ms, S1, trial health gate
 ```
 
-The application calls **only the public API**. SUOTA events flow into the RS through
+The application calls only the public API. SUOTA events flow into the RS through
 `..._hal_feed_start/_block/_end/_install_request()`, and the transport glue asks `..._StatusGet()` for the
 verdict it reports to the phone.
 
 > [!NOTE]
-> Because the transport owns a task, the event callback and the staging updates run on the **BLE
-> task**, not the caller's. The orchestrator guards its state with `..._hal_lock()` /
+> Because the transport owns a task, the event callback and the staging updates run on the BLE
+> task, not the caller's. The orchestrator guards its state with `..._hal_lock()` /
 > `..._hal_unlock()` (an RTOS critical section on target, no-ops on a host), so `StatusGet()` is safe
 > from either thread. The dedicated task uses a static 2 KB stack.
 
-The staging window is erased **once per download**, when the SUOTA client starts a transfer — not at
+The staging window is erased once per download, when the SUOTA client starts a transfer — not at
 boot — so the secondary slot keeps the previous image (the rollback copy, or an image staged earlier)
 until a new one actually arrives.
 
@@ -354,22 +353,22 @@ until a new one actually arrives.
 
 ### 6.1 RTT Terminal
 
-All diagnostics go over **SEGGER RTT channel 0** — there is **no UART console and no CLI**. SCI0 is wired
+All diagnostics go over SEGGER RTT channel 0 — there is no UART console and no CLI. SCI0 is wired
 to the DA14531 on PMOD2 and carries the GTL link, so a serial console would collide with the BLE
-transport. RTT is **output only**.
+transport. RTT is output only.
 
 | Sink | Used by | Defined in |
 |---|---|---|
 | `OTA_LOG()` / `OTA_LOG_HEX()` | Application only (`src/app`) | `src/app/ota_fw_update_over_ble_log.c` |
 | `rs_ota_fw_update_over_ble_hal_log()` / `..._hal_logs()` | Everything inside the RS | `src/rs_ota_fw_update_over_ble/src/hal/rs_ota_fw_update_over_ble_hal_ra6e2.c` |
 
-**Only `src/app` may call `SEGGER_RTT_*`.** The RS formats each line and hands the finished string to
+Only `src/app` may call `SEGGER_RTT_*`. The RS formats each line and hands the finished string to
 the single application callback (`cfg->p_callback`), which this demo forwards to `OTA_LOG()`. RS lines
 produced before the callback is registered are parked (8 lines) and replayed on registration.
 `ota_log_init()` arms up-buffer 0 as `SEGGER_RTT_MODE_NO_BLOCK_SKIP` — keep it that way, or a full FIFO
 with no viewer attached stalls the BLE thread. Define `OTA_LOG_DISABLE` to compile the trace out.
 
-Every boot prints a banner. Each image carries a 64-byte **version record** (`APP_VERSION_*` in
+Every boot prints a banner. Each image carries a 64-byte version record (`APP_VERSION_*` in
 `src/app/ota_fw_update_over_ble_log.h`), and the banner scans the secondary slot for it, so it can tell
 a pending update from a rollback copy:
 
@@ -401,12 +400,12 @@ A transfer then logs concise progress lines:
 ```
 
 > [!WARNING]
-> The payload must fit the **flat 96 KB (98 304-byte)** secondary slot. An oversize image fails near the
+> The payload must fit the flat 96 KB (98 304-byte) secondary slot. An oversize image fails near the
 > end of the transfer with *"Not enough internal memory space for patch"* (`0x07`).
 
 ### 6.2 User Button S1
 
-**Pressing S1 (the FPB-RA6E2 user button, P304) installs whatever is already staged**, so the
+Pressing S1 (the FPB-RA6E2 user button, P304) installs whatever is already staged, so the
 swap/trial/revert sequence can be replayed from a board that has been sitting idle — no phone, no
 transfer:
 
@@ -421,7 +420,7 @@ carries on (`[APP] S1: install refused - secondary slot is empty`).
 
 | Aspect | Choice | Why |
 |---|---|---|
-| Detection | `R_BSP_PinRead(SW1)` polled in the existing 250 ms loop | P304 is already an input in the generated pin data; an ICU/external-IRQ instance would need a configuration change **and** a regeneration. |
+| Detection | `R_BSP_PinRead(SW1)` polled in the existing 250 ms loop | P304 is already an input in the generated pin data; an ICU/external-IRQ instance would need a configuration change and a regeneration. |
 | Debounce | None beyond the 250 ms sample period | Far longer than any contact bounce. |
 | Edge | Press edge only, seeded from the pin's state at start-up | Holding S1 cannot re-arm repeatedly, and a board powered up with S1 held does not self-trigger. |
 | Swap mode | `APP_BUTTON_SWAP_MODE`, default `..._AFTER_RESET_WITH_TEST` | A manual install of a broken image is still undone by the next reset. Change it to `..._AFTER_RESET` for a permanent install with no safety net. |
@@ -432,18 +431,18 @@ reset identically — only the decision to go differs.
 
 ### 6.3 SUOTA App Settings
 
-Use the stock **Renesas SUOTA** app. After selecting the device (`ra_suota`) and the image file, set the
-update parameters **exactly** as follows before starting the transfer:
+Use the stock Renesas SUOTA app. After selecting the device (`ra_suota`) and the image file, set the
+update parameters exactly as follows before starting the transfer:
 
 | Setting | Value |
 |---|---|
-| **Memory type** | **SPI** |
-| **Image bank** | **Oldest** |
-| **Block size** | **1024** (maximum) |
-| **MISO GPIO** | **P0_5** |
-| **MOSI GPIO** | **P0_6** |
-| **CS GPIO** | **P0_3** |
-| **SCK GPIO** | **P0_0** |
+| **Memory type** | SPI |
+| **Image bank** | Oldest |
+| **Block size** | 1024 (maximum) |
+| **MISO GPIO** | P0_5 |
+| **MOSI GPIO** | P0_6 |
+| **CS GPIO** | P0_3 |
+| **SCK GPIO** | P0_0 |
 
 **The file to send is `Debug/ra6e2_da14531ebz_v2_ota.bin`** (VS Code: `build/Debug/ra6e2_da14531ebz_v2_ota.bin`) (see [Build](#step-3-build)) — not the `.elf`
 or `.srec`, and without any header added.
@@ -452,7 +451,7 @@ What the firmware does with these values:
 
 - **Memory type / image bank** are written to the SUOTA *Memory Device* characteristic
   (`0x13xxxxxx` = SPI, bank in the low bits). The firmware treats any such value as *start of transfer*:
-  it erases the RA6E2 **secondary slot in internal code flash** and stages the image there. Nothing is
+  it erases the RA6E2 secondary slot in internal code flash and stages the image there. Nothing is
   written to an external SPI flash.
 - **The SPI GPIO values** are required by the app to build its *GPIO map* write, but the firmware ignores
   that write (`GPIO_MAP` is accepted and discarded). They are not pins on the RA6E2 side.
@@ -511,9 +510,9 @@ ra6e2_da14531ebz_v2/
 
 ### 7.2 Software-Layer Architecture
 
-The RS is layered with internal HAL seams. The **core** (orchestrator, verifier, dependency check)
-contains no FSP/BLE references; the **HAL** isolates the code-flash staging
-store, the BLE/SUOTA transport and the log sink; the **bootloader seam** isolates the install contract.
+The RS is layered with internal HAL seams. The core (orchestrator, verifier, dependency check)
+contains no FSP/BLE references; the HAL isolates the code-flash staging
+store, the BLE/SUOTA transport and the log sink; the bootloader seam isolates the install contract.
 
 | Layer | Responsibility | Key files |
 |---|---|---|
@@ -547,7 +546,7 @@ HAL transport --on_start----------->  reset session, status = IN_PROGRESS, clear
 ```
 
 The verifier parses the 64-byte DA1453x SUOTA header (signature `0x7051`, code size, CRC32). A payload
-**without** that signature is treated as a raw image and accepted without a CRC check — which is what the
+without that signature is treated as a raw image and accepted without a CRC check — which is what the
 headerless `_ota.bin` is (see [Limitations](#10-limitations)).
 
 ### 7.3 Module Configuration
@@ -601,11 +600,11 @@ yet confirmed.
 
 | Function | Returns | Purpose |
 |---|---|---|
-| `rs_ota_fw_update_over_ble_Start(cfg, result_out)` | `rs_status_t` | Validate deps and bring up the SUOTA link on its own task; returns in state `WAITING`. `cfg == NULL` uses board presets. Does **not** erase the staging window — that happens when a client starts a transfer. |
+| `rs_ota_fw_update_over_ble_Start(cfg, result_out)` | `rs_status_t` | Validate deps and bring up the SUOTA link on its own task; returns in state `WAITING`. `cfg == NULL` uses board presets. Does not erase the staging window — that happens when a client starts a transfer. |
 | `rs_ota_fw_update_over_ble_Stop(void)` | `rs_status_t` | Stop acquisition and release the link. Idempotent. |
 | `rs_ota_fw_update_over_ble_StatusGet(p_result)` | `rs_status_t` | Current workflow status / progress, including `install_requested`. `RS_STATUS_ERR_ASSERTION` if `p_result == NULL`. |
 | `rs_ota_fw_update_over_ble_Swap(mode)` | `rs_status_t` | Install / confirm / cancel through the bootloader (see below). `RS_STATUS_ERR_UNSUPPORTED` with the stub back-end. |
-| `rs_ota_fw_update_over_ble_BootResultGet(p_result)` | `rs_status_t` | What the bootloader did on **this** boot, and whether the running image is **on trial**. "No report" (cold power-on) reads back as `OUTCOME_UNKNOWN`, not an error. |
+| `rs_ota_fw_update_over_ble_BootResultGet(p_result)` | `rs_status_t` | What the bootloader did on this boot, and whether the running image is on trial. "No report" (cold power-on) reads back as `OUTCOME_UNKNOWN`, not an error. |
 | `rs_ota_fw_update_over_ble_BootloaderInfoGet(p_info)` | `rs_status_t` | Identify the bootloader in flash (bundled / unknown / absent, CRC32 fingerprint) and its boot record. Read-only; call before a transfer. |
 | `rs_ota_fw_update_over_ble_SecondarySlotGet(p_slot)` | `rs_status_t` | Base, size and whether the secondary slot holds an application image. Read-only; call before a transfer. |
 
@@ -614,20 +613,20 @@ yet confirmed.
 | Mode | Behaviour |
 |---|---|
 | `..._SWAP_MODE_NOW` | Install permanently and reset immediately — does not return. |
-| `..._SWAP_MODE_AFTER_RESET` | Record a permanent install and **return**; any later reset applies it. |
-| `..._SWAP_MODE_AFTER_RESET_WITH_TEST` | Record a **trial** install and return. Unless `Swap(CONFIRM)` follows, the next reset after the install reverts it. |
+| `..._SWAP_MODE_AFTER_RESET` | Record a permanent install and return; any later reset applies it. |
+| `..._SWAP_MODE_AFTER_RESET_WITH_TEST` | Record a trial install and return. Unless `Swap(CONFIRM)` follows, the next reset after the install reverts it. |
 | `..._SWAP_MODE_CONFIRM` | Make the running trial image permanent; resets, the bootloader applies it on the way up. |
 | `..._SWAP_MODE_CANCEL` | Discard an armed request and keep running. Does not reset. |
 
 > [!NOTE]
-> An armed request lives in a RAM mailbox: it survives a warm reset but **not** a power cycle. If the
+> An armed request lives in a RAM mailbox: it survives a warm reset but not a power cycle. If the
 > board loses power before resetting, the request is lost and the current image simply boots again.
 
 ### 7.5 Bootloader Seam
 
 `src/hal/rs_ota_fw_update_over_ble_boot.h` is the single interface between the RS and the bootloader
 (internal, not a public API): `swap_arm()`, `swap_and_reset()`, `confirm_and_reset()`, `last_result()`,
-`bootloader_info()`, `secondary_slot()`. **Arming is not triggering**: `swap_arm()` only records the
+`bootloader_info()`, `secondary_slot()`. Arming is not triggering: `swap_arm()` only records the
 request; the reset is what makes the bootloader act.
 
 | Back-end | Selected when | Behaviour |
@@ -650,15 +649,12 @@ adding a third back-end with the same signatures. Details of the RA back-end:
 
 ### 7.6 The Bootloader
 
-The companion bootloader is a separate e² studio project, **`ota_fw_bootloader`**
+The companion bootloader is a separate e² studio project, `ota_fw_bootloader`
 ([github.com/ilanBracha/bootloader_ble_fota](https://github.com/ilanBracha/bootloader_ble_fota)); its
 binary is embedded in this project (see [The embedded bootloader](#the-embedded-bootloader)). It is
 7708 bytes of a 16 KB region and owns all boot state.
 
-**Why swap.** The application executes in place from flash, so its vector table and branch targets are
-absolute addresses fixed at link time, and the RA6E2 has no dual-bank remap. The application therefore
-**always runs from the primary slot**; a new image is staged in the secondary slot and the bootloader
-physically exchanges the two slots before anything runs.
+**Why swap** The application executes in place from flash, so its vector table and branch targets are absolute addresses fixed at link time, and the RA6E2 has no dual-bank remap. The application therefore always runs from the primary slot;a new image is staged in the secondary slot and the bootloader physically exchanges the two slots before anything runs.
 
 **On every boot** it: reads the RAM mailbox (the reset is the trigger) and validates a swap request —
 the staged image must have a plausible, primary-linked vector table; performs or resumes the exchange;
@@ -668,7 +664,7 @@ usable image); and writes the outcome back to the mailbox.
 **Exchange and resume.** Each of the 3 × 32 KB sectors is swapped in 3 legs through the scratch area
 (`scratch ← secondary`, `secondary ← primary`, `primary ← scratch`). A 4-byte entry is appended to a
 data-flash log after each leg, so a power cut resumes from the first unfinished leg. The full 96 KB is
-always exchanged (~1.1 s). After a swap the secondary slot holds the **previous** image — the rollback
+always exchanged (~1.1 s). After a swap the secondary slot holds the previous image — the rollback
 copy.
 
 **Trial and rollback.** A trial install leaves the boot record at `swap_type = REVERT, image_ok = 0`.
@@ -684,8 +680,8 @@ boot record; after the last leg the primary slot is measured and compared (`ERR_
 
 > [!IMPORTANT]
 > **The watchdog is the application's job, not the bootloader's.** A trial image that crashes resets
-> itself and is rolled back; one that **hangs** never resets and would run unconfirmed forever. A product
-> must add a watchdog in the application, in **register-start** mode (the default `OFS0` already selects
+> itself and is rolled back; one that hangs never resets and would run unconfirmed forever. A product
+> must add a watchdog in the application, in register-start mode (the default `OFS0` already selects
 > it) so it is not armed while the bootloader runs. The demo application has no watchdog.
 
 The bootloader project carries its own verification scripts (J-Link, no phone needed):
@@ -700,7 +696,7 @@ The bootloader project carries its own verification scripts (J-Link, no phone ne
 
 ### 7.7 Flash Layout
 
-RA6E2 has 256 KB of **single-bank** code flash (8 KB erase blocks below `0x10000`, 32 KB above; 128-byte
+RA6E2 has 256 KB of single-bank code flash (8 KB erase blocks below `0x10000`, 32 KB above; 128-byte
 program unit). Master copy of this map: `ota_fw_bootloader/src/boot_layout.h`.
 
 ```text
@@ -724,7 +720,7 @@ The staging window is defined in `src/rs_ota_fw_update_over_ble/src/hal/rs_ota_f
 (`…_CFG_STAGE_ADDR = 0x00028000`, `…_CFG_STAGE_SIZE = 0x00018000`).
 
 > [!IMPORTANT]
-> The transferred image must be **≤ 96 KB** and must be the flat, headerless `*_ota.bin` — the
+> The transferred image must be ≤ 96 KB and must be the flat, headerless `*_ota.bin` — the
 > bootloader reads the vector table from offset 0 of the slot.
 
 ---
@@ -733,7 +729,7 @@ The staging window is defined in `src/rs_ota_fw_update_over_ble/src/hal/rs_ota_f
 
 ### 8.1 Runtime Flow — Install on SUOTA REBOOT
 
-A completed download does **not** reset the board. `STATUS_SUCCESS` means "a complete image is staged and
+A completed download does not reset the board. `STATUS_SUCCESS` means "a complete image is staged and
 verified", nothing more — the SUOTA client ends the transfer with `MEM_DEV = 0xFE000000` (END) and then
 decides, in its own time, whether to activate it with `MEM_DEV = 0xFD000000` (REBOOT). Installing on END
 would reset the board while the phone is still talking to it, and a good update would look like a
@@ -741,7 +737,7 @@ failure.
 
 The RS therefore latches the REBOOT as `result.install_requested` (only if the image verified OK; a
 REBOOT after a bad header/CRC is answered with the error status and otherwise ignored), and the
-application acts on **that** flag — on trial:
+application acts on that flag — on trial:
 
 ```text
 [APP] ================================================================
@@ -755,12 +751,12 @@ application acts on **that** flag — on trial:
 
 If the request never arrives — the user cancels, or the link simply drops — nothing happens. The image
 stays staged, this boot carries on, and it can still be installed later with S1 or replaced by the next
-download. There is deliberately **no timeout**: a staged image is not a reason to reboot.
+download. There is deliberately no timeout: a staged image is not a reason to reboot.
 
 ### 8.2 Trial Boot and Health Gate
 
-The new image boots **on trial** (`BootResultGet()` reports `trial_pending`). It prints a compact banner,
-mutes the RS "ready for download" lines, and runs a **5 s health gate** (`APP_TRIAL_HEALTH_GATE_MS`),
+The new image boots on trial (`BootResultGet()` reports `trial_pending`). It prints a compact banner,
+mutes the RS "ready for download" lines, and runs a 5 s health gate (`APP_TRIAL_HEALTH_GATE_MS`),
 then confirms itself with `Swap(CONFIRM)`, which resets once more so the bootloader can record it:
 
 ```text
@@ -772,7 +768,7 @@ then confirms itself with `Swap(CONFIRM)`, which resets once more so the bootloa
 [APP] trial: PASSED 5 s - confirming image, resetting
 ```
 
-A trial image that got there through an **abnormal reset** (watchdog, low voltage, parity/ECC/MPU/stack
+A trial image that got there through an abnormal reset (watchdog, low voltage, parity/ECC/MPU/stack
 error) is never confirmed; any reset before the confirm rolls it back. The 5 s gate only proves that the
 image booted, brought BLE up and kept running — replace it with a real definition of "healthy" in a
 product. A trial that always confirms is a permanent swap with extra steps.
@@ -780,15 +776,15 @@ product. A trial that always confirms is a permanent swap with extra steps.
 ### 8.3 Flash Guard
 
 On the single-bank RA6E2 the CPU cannot fetch from code flash during program/erase, so interrupts are
-masked for the whole operation — up to ~240 ms for a 32 KB block erase. SCI0 has **no FIFO**
-(`SCI_UART_CFG_FIFO_SUPPORT` is 0) and **no flow control**, so it holds exactly **one** unread byte
+masked for the whole operation — up to ~240 ms for a 32 KB block erase. SCI0 has no FIFO
+(`SCI_UART_CFG_FIFO_SUPPORT` is 0) and no flow control, so it holds exactly one unread byte
 (~87 µs at 115200). GTL is a length-prefixed stream parsed byte-by-byte in the RXI ISR with no resync,
 so a *single* dropped byte desynced the parser permanently: the next `R_BLE_GATTS_Notification()`
 returned `BLE_ERR_NOT_FOUND` (0x000D), the disconnect event was never decoded, advertising never
 restarted, and the device was dead until reset.
 
-Every code-flash P/E operation therefore runs inside a **flash guard** in
-`rs_ota_fw_update_over_ble_hal_ra6e2.c`: the SCI0 RXI event is temporarily routed to the **DTC**
+Every code-flash P/E operation therefore runs inside a flash guard in
+`rs_ota_fw_update_over_ble_hal_ra6e2.c`: the SCI0 RXI event is temporarily routed to the DTC
 (standalone `g_transfer0` instance, activation source `ELC_EVENT_SCI0_RXI`), which copies `SCI0.RDR`
 into a 3 KB RAM buffer while the CPU is frozen, and the captured bytes are replayed into
 `R_BLE_GTL_UartCallback()` afterwards so the parser sees one unbroken stream. The DTC reads its vector
@@ -796,7 +792,7 @@ table (`.fsp_dtc_vector_table`, linked into RAM) and transfer info from SRAM, so
 flash. Splitting the erase one block per BLE main-loop pass is now only about responsiveness.
 
 > [!IMPORTANT]
-> The DTC must be a **standalone** `r_dtc` stack under the BLE thread — **not** the UART's
+> The DTC must be a standalone `r_dtc` stack under the BLE thread — not the UART's
 > `p_transfer_rx` slot, which would hand RX to `R_SCI_UART_Read()` and suppress the per-byte
 > `UART_EVENT_RX_CHAR` callbacks the GTL parser depends on. Keep `SCI_UART_CFG_DTC_SUPPORTED` at 0.
 > Properties: name `g_transfer0`, Mode `Normal`, Transfer Size `1 Byte`, Source Address Mode `Fixed`,
@@ -852,7 +848,7 @@ the boot result (install outcome).
 
 | I want to… | Edit |
 |---|---|
-| Move / resize the slots | Bootloader `src/boot_layout.h` + `memory_regions.lld`, **and** the RS `…_deps.h` / `…_boot.h`, `script/ota.lld` / `script/ota.ld`, `OTA_SLOT_SIZE` in `makefile.targets` and `CMakeLists.txt`. Keep erase-block alignment; run `check_contract.ps1`. |
+| Move / resize the slots | Bootloader `src/boot_layout.h` + `memory_regions.lld`, and the RS `…_deps.h` / `…_boot.h`, `script/ota.lld` / `script/ota.ld`, `OTA_SLOT_SIZE` in `makefile.targets` and `CMakeLists.txt`. Keep erase-block alignment; run `check_contract.ps1`. |
 | Decide when to install | The application — any trigger that ends in `Swap()` works. |
 | Define "healthy" | Replace the demo's 5 s gate (`APP_TRIAL_HEALTH_GATE_MS`) with real checks. |
 | Use a different bootloader (e.g. MCUboot) | Add a third `…_boot_<name>.c` implementing the seam. |
@@ -866,7 +862,7 @@ the boot result (install outcome).
 - [ ] SCI UART configured for the DA14531 GTL link @ 115200.
 - [ ] Standalone DTC instance `g_transfer0` for the flash guard (activation source SCI RXI), and the
       UART's `p_transfer_rx` slot left empty.
-- [ ] `r_flash_hp` present with **code-flash programming enabled**.
+- [ ] `r_flash_hp` present with code-flash programming enabled.
 - [ ] BLE stack (`rm_ble_abs` + GTL) configured; SUOTA GATT profile generated via QE for BLE.
 - [ ] VEE starts at data flash `+0x80`, clear of the boot record.
 - [ ] `script/ota.lld` selected as the linker script for every configuration.
@@ -970,7 +966,7 @@ void app_entry (void)
   QE profile), otherwise the read is forwarded to the host, never answered, and the app times out.
 
 **Symptom**: Upload stalls after the first chunk
-- `PATCH_DATA` must be **Write Without Response**.
+- `PATCH_DATA` must be Write Without Response.
 
 **Symptom**: "File upload timeout" on the phone
 - Advertise `SUOTA_MTU = 23` (a *hint*). The real link auto-negotiates a large MTU and still carries
@@ -986,7 +982,7 @@ void app_entry (void)
 
 **Symptom**: PATCH_DATA writes fall through to UNHANDLED after a QE regen
 - The GTL bridge delivers every peer write as `WRITE_REQ` (`0x0C00`) even for Write-Without-Response;
-  the callback must match **both** `…_PATCH_DATA_WRITE_CMD` and the computed `WRITE_REQ` id.
+  the callback must match both `…_PATCH_DATA_WRITE_CMD` and the computed `WRITE_REQ` id.
 
 **Symptom**: VS Code configure fails with "rasc not found" or "ATfE not found"
 - Run `setup-env.cmd` / `setup-env.sh`, restart VS Code, and check that `RASC_EXE_PATH` points to the

@@ -318,7 +318,7 @@ goes to `build/Debug/`. It has the same `.elf`, `_ota.bin` and `_ota.elf` as the
 ### Step 4.A: Flash & Run in e² studio
 
 Flash the `.elf` with J-Link using the bundled connection/launch files
-(`ra6e2_da14531ebz_v2 Debug.jlink`, `… Debug_Flat.launch`).
+(`OTA Update over BLE Debug_Flat.launch`).
 
 ### Step 4.B: Flash & Run in VS Code
 
@@ -329,7 +329,7 @@ Press Ctrl+Shift+D (Run and Debug) and start one of the `.vscode/launch.json` co
 | **Renesas GDB Debugging Default** | Renesas debugger (`renesas-hardware`), J-Link, device `R7FA6E2BB` | `RENESAS_GDB_PYTHONHOME`; the `.sbd` next to the `.elf` |
 | **Renesas GDB Debugging Server** | `cortex-debug` against an external J-Link GDB server on `localhost:2331` | `ARM_GDB_PATH`; a running J-Link GDB server |
 
-The launch configurations load the CMake target (`build/Debug/ra6e2_da14531ebz_v2.elf`) and run to `main()`.
+The launch configurations load the CMake target (`build/Debug/ota_update_over_ble.elf`) and run to `main()`.
 
 ### After flashing (both IDEs)
 
@@ -394,7 +394,7 @@ a pending update from a rollback copy:
 
 ```text
 [APP]  OTA firmware update over BLE (RA6E2 + DA14531)
-[APP]  app          ra6e2_da14531ebz_v2 v1.0.0  (build ...)
+[APP]  app          ra6e2_da14531evz v1.0.0  (build ...)
 [APP]  bootloader   v1.1.0 (bundled, crc 0xE9645C84)
 [APP]  boot record  layout v3, N update(s)
 [APP]  reset        SOFTWARE, warm start
@@ -476,7 +476,7 @@ update parameters exactly as follows before starting the transfer:
 | **CS GPIO** | P0_3 |
 | **SCK GPIO** | P0_0 |
 
-**The file to send is `Debug/ra6e2_da14531ebz_v2_ota.bin`** (VS Code: `build/Debug/ra6e2_da14531ebz_v2_ota.bin`) (see [Build](#step-3-build)) — not the `.elf`
+**The file to send is `Debug/ra6e2_da14531ebz_v2_ota.bin`** (VS Code: `build/Debug/ota_update_over_ble_ota.bin`) (see [Build](#step-3-build)) — not the `.elf`
 or `.srec`, and without any header added.
 
 What the firmware does with these values:
@@ -498,7 +498,7 @@ What the firmware does with these values:
 ### 7.1 Project Structure
 
 ```text
-ra6e2_da14531ebz_v2/
+examples/fpb-ra6e2/
 ├── src/
 │   ├── ble_thread_entry.c              FSP stub — delegates to the demo entry
 │   ├── app/
@@ -773,7 +773,7 @@ application acts on that flag — on trial:
 ```text
 [APP] ================================================================
 [APP]  INSTALL      requested by SUOTA - TRIAL image armed
-[APP]  image        ra6e2_da14531ebz_v2 v1.0.1  (build ...) @0x00028000 - NEWER - pending install
+[APP]  image        ra6e2_da14531evz v1.0.1  (build ...) @0x00028000 - NEWER - pending install
 [APP]  safety net   must confirm within 5 s of boot, else rolls back
 [APP]  BLE          link closed
 [APP] ================================================================
@@ -791,8 +791,8 @@ mutes the OTA SBB "ready for download" lines, and runs a 5 s health gate (`APP_T
 then confirms itself with `Swap(CONFIRM)`, which resets once more so the bootloader can record it:
 
 ```text
-[APP]  TRIAL BOOT   ra6e2_da14531ebz_v2 v1.0.1  (build ...)
-[APP]  rollback to  ra6e2_da14531ebz_v2 v1.0.0  (build ...) @0x00028000 - older - rollback copy
+[APP]  TRIAL BOOT   ra6e2_da14531evz v1.0.1  (build ...)
+[APP]  rollback to  ra6e2_da14531evz v1.0.0  (build ...) @0x00028000 - older - rollback copy
 [APP]  health gate  5 s - confirms if the app keeps running, else next reset rolls back
 [APP] trial: healthy  1 s / 5 s
 ...

@@ -158,7 +158,7 @@ button S1), runs the trial health gate and writes diagnostics to SEGGER RTT.
 | e² studio | Primary IDE; opens the project via the committed `.cproject` / `configuration.xml` |
 | RA Smart Configurator (RASC) | Regenerates `ra/`, `ra_gen/`, `ra_cfg/` from `configuration.xml` |
 | QE for BLE | Edits the SUOTA GATT profile; output merged via `scripts/qe_ble.bat` |
-| LLVM for Arm (ATfE) 21.1.1 | `clang` / `ld.lld` — e² studio Debug configuration and the VS Code `Renesas Platform: Arm LLVM Toolchain - 21.1.1` kit (default) |
+| Renesas Platform: Arm LLVM Toolchain - 21.1.1 | `clang` / `ld.lld` — e² studio Debug configuration and the VS Code kit (default) |
 | Arm GNU Embedded toolchain 13.3 | `arm-none-eabi-gcc` (newlib) — e² studio Release configuration and the VS Code ARM GCC - Ninja kit (fallback) |
 | VS Code *(optional)* | Second IDE, built with CMake (`CMakeLists.txt`) — independent of the e² studio build; needs the CMake Tools and Renesas debug extensions |
 | CMake ≥ 3.20 + Ninja | VS Code build only |
@@ -168,7 +168,7 @@ button S1), runs the trial health gate and writes diagnostics to SEGGER RTT.
 The project builds from e² studio (managed build: `.cproject`, `makefile.targets`) and from VS Code
 (CMake: `CMakeLists.txt`, `cmake/`, `.vscode/`) out of the same sources. Neither build uses the other's
 files. For VS Code, the Renesas Platform extension provides the toolchain kits, and the CMake files
-find the LLVM (ATfE) toolchain, Ninja and the Smart Configurator (RASC) automatically. Set
+find the Arm LLVM toolchain, Ninja and the Smart Configurator (RASC) automatically. Set
 `ARM_TOOLCHAIN_PATH` or `RASC_EXE_PATH` only to override them.
 
 ---
@@ -191,7 +191,7 @@ find the LLVM (ATfE) toolchain, Ninja and the Smart Configurator (RASC) automati
 | BLE transport | DA14531 GTL over SCI0 UART @ 115200 |
 | Flash guard | Standalone DTC instance `g_transfer0`, activation source SCI0 RXI |
 | BLE bonding storage | `rm_vee_flash` in data flash, starting at `+0x80` (the first 128 bytes belong to the bootloader) |
-| FSP / toolchain | 6.5.0 / LLVM for Arm (ATfE) 21.1.1 |
+| FSP / toolchain | 6.5.0 / Renesas Platform: Arm LLVM Toolchain - 21.1.1 |
 | Linker script | `script/ota.lld` (LLVM) / `script/ota.ld` (GCC kit in VS Code) — application at `0x00010000`, length `0x18000`; bootloader at `0x00000000` |
 
 ---
